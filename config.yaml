@@ -1,79 +1,329 @@
-# Configuration Local Agents
-# ===========================
+# =============================================================================
+# Configuration des Agents - Local Agents
+# =============================================================================
+# Ce fichier permet de définir des agents custom SANS modifier le code Go.
+# L'orchestrateur charge automatiquement les agents définis ici au démarrage.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Agents intégrés (built-in)
+# -----------------------------------------------------------------------------
+
+agents:
+  # Agent Coder - Génération de code
+  coder:
+    enabled: true
+    name: "Coder"
+    description: "Agent spécialisé dans la génération et l'analyse de code"
+    icon: "💻"
+    
+    # Modèle à utiliser (référence ollama.models ou nom direct)
+    model: "coding"  # Utilise ollama.models.coding
+    
+    # Fichier de prompt système (relatif à ./prompts/)
+    prompt_file: "prompts/coder.md"
+    # Outils disponibles pour cet agent
+    tools:
+      - vscode
+      - git
+      - terminal
+      - filesystem
+    
+    # Configuration spécifique
+    config:
+      temperature: 0.3      # Plus déterministe pour le code
+      max_tokens: 2048
+      timeout_ms: 120000    # 2 minutes pour génération longue
+    
+    # Capacités déclarées
+    capabilities:
+      - code_generation
+      - code_review
+      - debugging
+      - refactoring
+
+  # Agent Files - Gestion de fichiers
+  files:
+    enabled: true
+    name: "Files"
+    description: "Agent de gestion de fichiers et dossiers"
+    icon: "📁"
+    model: "general"
+    prompt_file: "prompts/files.md"
+    tools:
+      - filesystem
+    config:
+      temperature: 0.2
+      max_tokens: 1024
+    capabilities:
+      - file_read
+      - file_write
+      - file_search
+    
+    # Restrictions de sécurité
+    security:
+      allowed_paths:
+        - "${HOME}/Documents"
+        - "${HOME}/Projects"
+        - "${HOME}/Downloads"
+      denied_paths:
+        - "${HOME}/.ssh"
+        - "${HOME}/.gnupg"
+        - "/etc"
+        - "/var"
+      max_file_size_mb: 10
+
+  # Agent Email
+  email:
+    enabled: true
+    name: "Email"
+    description: "Agent d'envoi et gestion d'emails"
+    icon: "✉️"
+    model: "general"
+    prompt_file: "prompts/email.md"
+    tools:
+      - smtp
+    config:
+      temperature: 0.5
+      max_tokens: 1024
+    capabilities:
+      - send_email
+      - draft_email
+    
+    # Configuration SMTP (override depuis .env)
+    smtp:
+      host: "${EMAIL_SMTP_HOST:-smtp.gmail.com}"
+      port: "${EMAIL_SMTP_PORT:-587}"
+      user: "${EMAIL_USER}"
+      password: "${EMAIL_PASS}"
+
+  # Agent Social
+  social:
+    enabled: false  # Désactivé par défaut
+    name: "Social"
+    description: "Agent de publication sur réseaux sociaux"
+    icon: "🐦"
+    model: "general"
+    prompt_file: "prompts/social.md"
+    tools:
+      - twitter
+      - linkedin
+    config:
+      temperature: 0.7
+      max_tokens: 512
+    capabilities:
+      - post_twitter
+      - post_linkedin
+
+  # Agent Discord
+  discord:
+    enabled: true
+    name: "Discord"
+    description: "Bot Discord Jarvis"
+    icon: "🎮"
+    model: "fast"
+    prompt_file: "prompts/discord.md"
+    
+    # Le bot Discord est un agent externe (Python)
+    type: "external"
+    endpoint: "python://agents/discord/bot.py"
+    
+    config:
+      temperature: 0.6
+      max_tokens: 1024
+      timeout_ms: 90000
+    
+    capabilities:
+      - chat
+      - moderation
+      - role_management
+    
+    # Modes disponibles (spécifique Discord)
+    modes:
+      discussion:
+        prompt_file: "discord_discussion.md"
+        model: "general"
+        temperature: 0.7
+      code:
+        prompt_file: "discord_code.md"
+        model: "coding"
+        temperature: 0.3
+      moderation:
+        prompt_file: "discord_moderation.md"
+        model: "fast"
+        temperature: 0.2
+
+# -----------------------------------------------------------------------------
+# Agents custom (exemples)
+# -----------------------------------------------------------------------------
+
+  # Exemple: Agent de traduction
+  # translator:
+  #   enabled: false
+  #   name: "Translator"
+  #   description: "Agent de traduction multilingue"
+  #   icon: "🌍"
+  #   model: "mistral:7b"  # Bon pour les langues
+  #   prompt_file: "translator.md"
+  #   tools: []
+  #   config:
+  #     temperature: 0.3
+  #     max_tokens: 2048
+  #   capabilities:
+  #     - translate
+  #   supported_languages:
+  #     - fr
+  #     - en
+  #     - es
+  #     - de
+
+  # Exemple: Agent de recherche
+  # researcher:
+  #   enabled: false
+  #   name: "Researcher"
+  #   description: "Agent de recherche et synthèse d'informations"
+  #   icon: "🔍"
+  #   model: "llama3.2:3b"
+  #   prompt_file: "researcher.md"
+  #   tools:
+  #     - web_search
+  #     - filesystem
+  #   config:
+  #     temperature: 0.4
+  #     max_tokens: 4096
+  #   capabilities:
+  #     - search
+  #     - summarize
+  #     - fact_check
+
+# -----------------------------------------------------------------------------
+# Définition des outils
+# -----------------------------------------------------------------------------
+
+tools:
+  filesystem:
+    name: "Filesystem"
+    description: "Lecture/écriture de fichiers"
+    handler: "internal/tools/filesystem.go"
+    
+  terminal:
+    name: "Terminal"
+    description: "Exécution de commandes shell"
+    handler: "internal/tools/terminal.go"
+    config:
+      allowed_commands:
+        - ls
+        - cat
+        - head
+        - tail
+        - grep
+        - find
+        - wc
+        - pwd
+        - echo
+      denied_commands:
+        - rm
+        - sudo
+        - chmod
+        - chown
+      timeout_ms: 30000
+    
+  git:
+    name: "Git"
+    description: "Opérations Git"
+    handler: "internal/tools/git.go"
+    
+  vscode:
+    name: "VSCode"
+    description: "Intégration Visual Studio Code"
+    handler: "internal/tools/vscode.go"
+    
+  smtp:
+    name: "SMTP"
+    description: "Envoi d'emails via SMTP"
+    handler: "internal/tools/email.go"
+    
+  twitter:
+    name: "Twitter"
+    description: "Publication sur Twitter/X"
+    handler: "internal/tools/twitter.go"
+    
+  linkedin:
+    name: "LinkedIn"
+    description: "Publication sur LinkedIn"
+    handler: "internal/tools/linkedin.go"
+
+  # Outils custom
+  # web_search:
+  #   name: "Web Search"
+  #   description: "Recherche web via DuckDuckGo"
+  #   handler: "internal/tools/websearch.go"
+  #   config:
+  #     max_results: 10
+  #     safe_search: true
+
+# -----------------------------------------------------------------------------
+# Modèles Ollama
+# -----------------------------------------------------------------------------
+
+ollama:
+  base_url: "http://localhost:11434"
+  default_model: "llama3.2:3b"
+  
+  # Alias de modèles
+  models:
+    coding: "llama3.2:3b"      # Pour génération de code
+    general: "llama3.2:3b"     # Usage général
+    fast: "phi3:mini"          # Réponses rapides
+    french: "mistral:7b"       # Meilleur pour le français
+    
+  # Configuration par défaut
+  defaults:
+    temperature: 0.7
+    max_tokens: 1024
+    timeout_ms: 60000
+
+# -----------------------------------------------------------------------------
+# Serveur
+# -----------------------------------------------------------------------------
 
 server:
   host: "0.0.0.0"
   port: 8080
   websocket_path: "/ws"
+  
+  # CORS
+  cors:
+    enabled: true
+    origins:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
 
-ollama:
-  base_url: "http://localhost:11434"
-  default_model: "qwen2:1.5b"  # Modèle par défaut
-  models:
-    coding: "qwen2:1.5b"    # Pour le code
-    general: "qwen2:1.5b"   # Usage général
-    fast: "qwen2:1.5b"      # Réponses rapides
-
-agents:
-  coder:
-    enabled: true
-    prompt_file: "prompts/coder.md"
-    model: "coding"
-    tools:
-      - "vscode"
-      - "git"
-      - "terminal"
-      - "filesystem"
-      - "discord" 
-  
-  files:
-    enabled: true
-    prompt_file: "prompts/files.md"
-    model: "general"
-    tools:
-      - "filesystem"
-      - "clipboard"
-    allowed_paths:
-      - "${HOME}/Documents"
-      - "${HOME}/Projects"
-      - "/tmp"
-  
-  email:
-    enabled: true
-    prompt_file: "prompts/email.md"
-    model: "general"
-    smtp:
-      host: "smtp.gmail.com"
-      port: 587
-      # Credentials via env: EMAIL_USER, EMAIL_PASS
-    imap:
-      host: "imap.gmail.com"
-      port: 993
-  
-  social:
-    enabled: true
-    prompt_file: "prompts/social.md"
-    model: "general"
-    platforms:
-      - "twitter"
-      - "linkedin"
-  
-  discord:
-    enabled: true
-    prompt_file: "prompts/discord.md"
-    model: "fast"
-    Token via env: DISCORD_BOT_TOKEN
-
-storage:
-  type: "sqlite"
-  path: "data/agents.db"
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
 
 logging:
-  level: "info"  # debug, info, warn, error
-  format: "json"
+  level: "${LOG_LEVEL:-info}"  # debug, info, warn, error
+  format: "json"               # json ou text
   file: "logs/agents.log"
+  
+  # Logs structurés - champs inclus
+  fields:
+    - timestamp
+    - level
+    - request_id
+    - agent_id
+    - duration_ms
+    - status
+
+# -----------------------------------------------------------------------------
+# Queue de tâches
+# -----------------------------------------------------------------------------
 
 queue:
-  type: "memory"  # memory ou redis
+  type: "memory"          # memory ou redis
   max_concurrent: 5
   task_timeout: "5m"
+  retry_attempts: 3
+  retry_delay: "1s"

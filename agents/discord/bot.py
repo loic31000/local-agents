@@ -1,164 +1,487 @@
+"""
+Bot Discord Jarvis v3 - Support Ollama + GGUF avec GPU.
+
+Features:
+- Backend Ollama (API HTTP) ou GGUF (GPU direct)
+- Modes: discussion, code, moderation
+- Mémoire contextuelle par canal
+- Logs structurés JSON
+- Commandes: !backend, !model, !mode, !memory, !gpu
+"""
+
 import os
 import re
 import json
 import asyncio
 import aiohttp
 import discord
+import sys
+import time
+import uuid
 from discord.ext import commands
-from datetime import timedelta, datetime
-from collections import defaultdict, deque
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Dict, List, Any
+from pathlib import Path
+
+# Ajouter le chemin parent pour importer les modules communs
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from common.logger import get_logger, log_request
+
+# ============================================================
+# Configuration
+# ============================================================
+
+AGENT_ID = "discord"
+AGENT_VERSION = "3.0.0"
+
+# Backend par défaut: ollama ou gguf
+DEFAULT_BACKEND = os.getenv("LLM_BACKEND", "ollama")
+
+# Ollama config
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+
+# GGUF config
+GGUF_MODELS_DIR = Path(os.getenv("GGUF_MODELS_DIR", Path.home() / ".local-agents" / "models"))
+GGUF_DEFAULT_MODEL = os.getenv("GGUF_MODEL", "")
+GGUF_GPU_LAYERS = int(os.getenv("GGUF_GPU_LAYERS", "-1"))  # -1 = tout sur GPU
+
+# Logger structuré
+logger = get_logger(AGENT_ID, level=os.getenv("LOG_LEVEL", "info"))
+
+# ============================================================
+# État global
+# ============================================================
+
+# Backend actif par serveur
+guild_backends: Dict[int, str] = {}  # guild_id -> "ollama" ou "gguf"
+
+# Modèle actif par serveur
+guild_models: Dict[int, str] = {}  # guild_id -> model_name
+
+# Mode actif par serveur
+guild_modes: Dict[int, str] = {}  # guild_id -> "discussion", "code", "moderation"
+
+# Mémoire contextuelle par canal
+channel_memory: Dict[int, List[Dict[str, str]]] = {}
+MAX_MEMORY = 10
+
+# Client LLM (initialisé au démarrage)
+llm_client = None
+gguf_available = False
+
+# Stats
+stats = {
+    "start_time": None,
+    "requests_total": 0,
+    "requests_success": 0,
+    "requests_error": 0,
+    "ollama_requests": 0,
+    "gguf_requests": 0,
+}
+
+# ============================================================
+# Bot Discord
+# ============================================================
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 bot.session = None
 
 # ============================================================
-# 🧠 MODÈLE - Change avec !model <nom>
-# ============================================================
-MODEL = "llama3.2:3b"
+# Prompts par mode
 # ============================================================
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
-
-# ============================================================
-# 🎭 MODES DU BOT
-# ============================================================
 MODES = {
     "discussion": {
-        "name": "Discussion",
-        "model": "llama3.2:3b",
-        "prompt": """Tu es Jarvis, un assistant Discord amical et conversationnel. Réponds de façon naturelle et engageante aux questions générales, discussions, et sujets variés. Utilise un ton amical et helpful.""",
-        "emoji": "💬"
+        "ollama_model": "llama3.2:3b",
+        "gguf_model": "mistral-7b-instruct-v0.2.Q4_K_M",
+        "temperature": 0.7,
+        "prompt": """Tu es Jarvis, un assistant Discord sympathique et serviable.
+Réponds de manière naturelle et amicale en français.
+Tu peux discuter de tout sujet, aider avec des questions, expliquer des concepts.
+Sois concis mais informatif."""
     },
     "code": {
-        "name": "Code",
-        "model": "llama3.2:3b",
-        "prompt": """Tu es Jarvis, un expert développeur. Tu aides avec la programmation, le debug, les bonnes pratiques, et la génération de code. Sois précis, pédagogique, et fournis des exemples concrets.""",
-        "emoji": "💻"
+        "ollama_model": "llama3.2:3b",
+        "gguf_model": "deepseek-coder-6.7b-instruct.Q4_K_M",
+        "temperature": 0.3,
+        "prompt": """Tu es Jarvis, un assistant de programmation expert.
+Tu génères du code propre, commenté et fonctionnel.
+Explique brièvement ton code si nécessaire.
+Utilise des blocs de code markdown avec le langage spécifié."""
     },
     "moderation": {
-        "name": "Modération",
-        "model": "phi3:mini",
-        "prompt": """Tu es Jarvis, un modérateur Discord strict mais fair. Analyse les situations et propose des actions de modération appropriées. Sois ferme mais juste dans tes recommandations.""",
-        "emoji": "🛡️"
+        "ollama_model": "phi3:mini",
+        "gguf_model": "phi3-mini-4k-instruct-q4",
+        "temperature": 0.2,
+        "prompt": """Tu es Jarvis, un bot de modération Discord.
+Analyse les demandes et retourne UNIQUEMENT un JSON avec l'action à effectuer.
+
+Actions disponibles:
+- {"action":"clear","n":50}
+- {"action":"role","role":"admin","op":"add"}
+- {"action":"kick"}
+- {"action":"ban"}
+- {"action":"mute","min":10}
+- {"action":"stats"}
+- {"action":"pin"}
+- {"action":"unpin"}
+- {"action":"chat","r":"réponse"}
+
+Retourne UNIQUEMENT le JSON."""
     }
 }
 
-# Mode par défaut
-CURRENT_MODE = "discussion"
+# ============================================================
+# Helpers
+# ============================================================
+
+def get_backend(guild_id: int) -> str:
+    """Récupère le backend actif d'un serveur."""
+    return guild_backends.get(guild_id, DEFAULT_BACKEND)
+
+
+def set_backend(guild_id: int, backend: str) -> bool:
+    """Définit le backend d'un serveur."""
+    if backend in ["ollama", "gguf"]:
+        if backend == "gguf" and not gguf_available:
+            return False
+        guild_backends[guild_id] = backend
+        return True
+    return False
+
+
+def get_mode(guild_id: int) -> str:
+    """Récupère le mode actuel d'un serveur."""
+    return guild_modes.get(guild_id, "discussion")
+
+
+def set_mode(guild_id: int, mode: str) -> bool:
+    """Définit le mode d'un serveur."""
+    if mode in MODES:
+        guild_modes[guild_id] = mode
+        return True
+    return False
+
+
+def get_model(guild_id: int) -> str:
+    """Récupère le modèle actif d'un serveur."""
+    backend = get_backend(guild_id)
+    mode = get_mode(guild_id)
+    
+    # Modèle custom défini ?
+    if guild_id in guild_models:
+        return guild_models[guild_id]
+    
+    # Sinon, modèle par défaut du mode
+    mode_config = MODES.get(mode, MODES["discussion"])
+    if backend == "gguf":
+        return mode_config.get("gguf_model", "")
+    return mode_config.get("ollama_model", OLLAMA_MODEL)
+
+
+def set_model(guild_id: int, model: str):
+    """Définit le modèle d'un serveur."""
+    guild_models[guild_id] = model
+
 
 # ============================================================
-# 🧠 MÉMOIRE COURTE PAR CANAL
+# Mémoire contextuelle
 # ============================================================
-CHANNEL_MEMORY = defaultdict(lambda: deque(maxlen=10))  # 10 messages max par canal
 
-# Déduplication des événements (Discord peut redélivrer des événements)
-PROCESSED_MESSAGES = deque(maxlen=200)
-
-SYSTEM_PROMPT = """Tu es Jarvis, un assistant Discord. Analyse et retourne UNIQUEMENT un JSON valide.
-
-Actions disponibles:
-- Nettoyer: {"action":"clear","n":50}
-- Rôle: {"action":"role","role":"admin","op":"add"} ou {"action":"role","role":"modo","op":"remove"}
-- Kick: {"action":"kick"}
-- Ban: {"action":"ban"}
-- Mute: {"action":"mute","min":10}
-- Stats: {"action":"stats"}
-- Épingler: {"action":"pin"}
-- Désépingler: {"action":"unpin"}
-- Réponse/Code: {"action":"chat","r":"ta réponse ici"}
-
-Exemples:
-- "nettoie le salon" → {"action":"clear","n":50}
-- "supprime 20 messages" → {"action":"clear","n":20}
-- "donne moi admin" → {"action":"role","role":"admin","op":"add"}
-- "donne vip à @user" → {"action":"role","role":"vip","op":"add"}
-- "retire modo" → {"action":"role","role":"modo","op":"remove"}
-- "kick @user" → {"action":"kick"}
-- "ban" → {"action":"ban"}
-- "mute 30 min" → {"action":"mute","min":30}
-- "stats" → {"action":"stats"}
-- "épingle ça" → {"action":"pin"}
-- "salut" → {"action":"chat","r":"Salut ! Je suis Jarvis, ton assistant."}
-- "code fibonacci python" → {"action":"chat","r":"Voici le code:\\n```python\\ndef fib(n):\\n    if n <= 1:\\n        return n\\n    return fib(n-1) + fib(n-2)\\n\\nprint([fib(i) for i in range(10)])\\n```"}
-
-Retourne UNIQUEMENT le JSON."""
+def add_to_memory(channel_id: int, role: str, content: str):
+    """Ajoute un message à la mémoire du canal."""
+    if channel_id not in channel_memory:
+        channel_memory[channel_id] = []
+    
+    channel_memory[channel_id].append({
+        "role": role,
+        "content": content[:500],
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    if len(channel_memory[channel_id]) > MAX_MEMORY:
+        channel_memory[channel_id] = channel_memory[channel_id][-MAX_MEMORY:]
 
 
-async def list_models():
-    """Liste les modèles Ollama"""
+def get_memory(channel_id: int) -> List[Dict[str, str]]:
+    """Récupère la mémoire d'un canal."""
+    return channel_memory.get(channel_id, [])
+
+
+def clear_memory(channel_id: int):
+    """Efface la mémoire d'un canal."""
+    if channel_id in channel_memory:
+        del channel_memory[channel_id]
+
+
+# ============================================================
+# LLM - Ollama
+# ============================================================
+
+async def list_ollama_models() -> List[str]:
+    """Liste les modèles Ollama disponibles."""
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get("http://localhost:11434/api/tags", timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(
+                f"{OLLAMA_URL}/api/tags",
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    models = [m["name"] for m in data.get("models", [])]
-                    print(f"📦 Modèles trouvés: {models}")
-                    return models
-                else:
-                    print(f"❌ Ollama status: {resp.status}")
+                    return [m["name"] for m in data.get("models", [])]
     except Exception as e:
-        print(f"❌ Erreur list_models: {e}")
+        logger.error("Failed to list Ollama models", error=str(e))
     return []
 
 
-async def ask_ollama(message: str, channel_id: int = None) -> dict:
-    """Demande à Ollama avec contexte du mode et du canal"""
+async def ask_ollama(
+    message: str,
+    model: str,
+    system_prompt: str,
+    temperature: float = 0.7,
+    history: List[Dict] = None,
+    request_id: str = None
+) -> Optional[Dict]:
+    """Envoie une requête à Ollama."""
+    
+    request_id = request_id or str(uuid.uuid4())
+    
+    # Construire le prompt avec historique
+    prompt_parts = [system_prompt]
+    
+    if history:
+        prompt_parts.append("\nHistorique récent:")
+        for msg in history[-5:]:
+            role = "User" if msg["role"] == "user" else "Jarvis"
+            prompt_parts.append(f"{role}: {msg['content']}")
+    
+    prompt_parts.append(f"\nUser: {message}\nJarvis:")
+    full_prompt = "\n".join(prompt_parts)
+    
+    start_time = time.time()
+    
     try:
-        # Récupérer le contexte du canal
-        context = ""
-        if channel_id and channel_id in CHANNEL_MEMORY:
-            recent_messages = list(CHANNEL_MEMORY[channel_id])
-            if recent_messages:
-                context = "\n".join([f"{msg['author']}: {msg['content']}" for msg in recent_messages[-5:]])  # Derniers 5 messages
-                context = f"Contexte récent de la conversation:\n{context}\n\n"
-        
-        # Utiliser le prompt du mode actuel
-        mode_data = MODES.get(CURRENT_MODE, MODES["discussion"])
-        system_prompt = mode_data["prompt"]
-        
         payload = {
-            "model": mode_data["model"],
-            "prompt": f"{system_prompt}\n\n{context}Message actuel: {message}\n\nRéponse:",
+            "model": model,
+            "prompt": full_prompt,
             "stream": False,
-            "options": {"temperature": 0.7, "num_predict": 400}
+            "options": {
+                "temperature": temperature,
+                "num_predict": 500
+            }
         }
         
+        logger.info(
+            "Ollama request",
+            request_id=request_id,
+            model=model,
+            message_length=len(message)
+        )
+        
         timeout = aiohttp.ClientTimeout(total=120)
-        async with bot.session.post(OLLAMA_URL, json=payload, timeout=timeout) as resp:
+        async with bot.session.post(f"{OLLAMA_URL}/api/generate", json=payload, timeout=timeout) as resp:
+            duration_ms = int((time.time() - start_time) * 1000)
+            
             if resp.status == 200:
                 data = await resp.json()
                 text = data.get("response", "").strip()
-                print(f"🤖 Ollama ({mode_data['model']} - {CURRENT_MODE}): {text[:200]}...")
                 
-                # Pour les modes non-modération, retourner directement la réponse
-                if CURRENT_MODE != "moderation":
-                    return {"action": "chat", "r": text[:1500]}
+                stats["ollama_requests"] += 1
                 
-                # Pour la modération, essayer de parser JSON
-                match = re.search(r'\{[^{}]+\}', text, re.DOTALL)
-                if match:
-                    try:
-                        return json.loads(match.group())
-                    except:
-                        pass
+                logger.info(
+                    "Ollama response",
+                    request_id=request_id,
+                    status="success",
+                    duration_ms=duration_ms,
+                    response_length=len(text)
+                )
                 
-                # Fallback
-                return {"action": "chat", "r": text[:1500]}
+                return {"text": text, "duration_ms": duration_ms}
             else:
-                print(f"❌ Ollama error: {resp.status}")
+                logger.error("Ollama error", request_id=request_id, status_code=resp.status)
                 return None
                 
     except asyncio.TimeoutError:
-        print("⏳ Timeout Ollama")
+        logger.error("Ollama timeout", request_id=request_id)
         return None
     except Exception as e:
-        print(f"❌ Erreur: {e}")
+        logger.error("Ollama exception", request_id=request_id, error=str(e))
         return None
 
 
-def fallback_parse(content: str) -> dict:
-    """Parse rapide sans IA"""
+# ============================================================
+# LLM - GGUF
+# ============================================================
+
+def init_gguf():
+    """Initialise le support GGUF si disponible."""
+    global gguf_available, llm_client
+    
+    try:
+        from common.llm_client import LLMClient
+        from common.gguf_loader import GGUFModelManager, detect_gpu_backend
+        
+        # Vérifier si des modèles GGUF sont disponibles
+        manager = GGUFModelManager()
+        models = manager.list_available()
+        
+        if models:
+            backend = detect_gpu_backend()
+            logger.info(
+                "GGUF support enabled",
+                models_count=len(models),
+                gpu_backend=backend.value
+            )
+            gguf_available = True
+            return True
+        else:
+            logger.info("GGUF: No models found, using Ollama only")
+            return False
+            
+    except ImportError as e:
+        logger.info(f"GGUF not available: {e}")
+        return False
+
+
+def list_gguf_models() -> List[str]:
+    """Liste les modèles GGUF disponibles."""
+    if not gguf_available:
+        return []
+    
+    try:
+        from common.gguf_loader import GGUFModelManager
+        manager = GGUFModelManager()
+        return [m["name"] for m in manager.list_available()]
+    except:
+        return []
+
+
+async def ask_gguf(
+    message: str,
+    model: str,
+    system_prompt: str,
+    temperature: float = 0.7,
+    history: List[Dict] = None,
+    request_id: str = None
+) -> Optional[Dict]:
+    """Envoie une requête à un modèle GGUF."""
+    
+    if not gguf_available:
+        return None
+    
+    request_id = request_id or str(uuid.uuid4())
+    
+    try:
+        from common.gguf_loader import GGUFModelManager
+        
+        # Construire le prompt
+        prompt_parts = []
+        if history:
+            for msg in history[-5:]:
+                role = "User" if msg["role"] == "user" else "Assistant"
+                prompt_parts.append(f"{role}: {msg['content']}")
+        prompt_parts.append(f"User: {message}")
+        full_prompt = "\n".join(prompt_parts)
+        
+        logger.info(
+            "GGUF request",
+            request_id=request_id,
+            model=model,
+            message_length=len(message)
+        )
+        
+        start_time = time.time()
+        
+        # Charger et utiliser le modèle (en thread pool pour ne pas bloquer)
+        loop = asyncio.get_event_loop()
+        
+        def run_gguf():
+            manager = GGUFModelManager()
+            loader = manager.load(model, n_gpu_layers=GGUF_GPU_LAYERS)
+            return loader.generate(
+                prompt=full_prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=500
+            )
+        
+        text = await loop.run_in_executor(None, run_gguf)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        stats["gguf_requests"] += 1
+        
+        logger.info(
+            "GGUF response",
+            request_id=request_id,
+            status="success",
+            duration_ms=duration_ms,
+            response_length=len(text)
+        )
+        
+        return {"text": text, "duration_ms": duration_ms}
+        
+    except FileNotFoundError:
+        logger.error("GGUF model not found", request_id=request_id, model=model)
+        return None
+    except Exception as e:
+        logger.error("GGUF exception", request_id=request_id, error=str(e))
+        return None
+
+
+# ============================================================
+# LLM - Unified
+# ============================================================
+
+async def ask_llm(
+    message: str,
+    guild_id: int,
+    history: List[Dict] = None,
+    request_id: str = None
+) -> Optional[Dict]:
+    """Envoie une requête au LLM actif (Ollama ou GGUF)."""
+    
+    backend = get_backend(guild_id)
+    mode = get_mode(guild_id)
+    model = get_model(guild_id)
+    mode_config = MODES.get(mode, MODES["discussion"])
+    
+    system_prompt = mode_config["prompt"]
+    temperature = mode_config["temperature"]
+    
+    if backend == "gguf" and gguf_available:
+        result = await ask_gguf(
+            message=message,
+            model=model,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            history=history,
+            request_id=request_id
+        )
+        if result:
+            return result
+        # Fallback to Ollama if GGUF fails
+        logger.warn("GGUF failed, falling back to Ollama")
+    
+    # Ollama
+    return await ask_ollama(
+        message=message,
+        model=model if backend == "ollama" else OLLAMA_MODEL,
+        system_prompt=system_prompt,
+        temperature=temperature,
+        history=history,
+        request_id=request_id
+    )
+
+
+# ============================================================
+# Fallback parser (sans IA)
+# ============================================================
+
+def fallback_parse(content: str) -> Optional[Dict]:
+    """Parse rapide sans IA pour les commandes de modération."""
     c = content.lower()
     
     # PIN
@@ -204,19 +527,37 @@ def fallback_parse(content: str) -> dict:
     return None
 
 
-async def execute(msg: discord.Message, data: dict, mentions: list):
-    """Exécute l'action"""
-    action = data.get("action")
+# ============================================================
+# Exécution des actions
+# ============================================================
+
+async def execute_action(
+    msg: discord.Message,
+    data: Dict,
+    mentions: List[discord.Member],
+    request_id: str
+):
+    """Exécute une action avec logging structuré."""
+    
+    action = data.get("action", "chat")
     guild = msg.guild
     author = msg.author
     
-    print(f"⚡ {action} | {data}")
+    logger.info(
+        "Executing action",
+        request_id=request_id,
+        action=action,
+        data=data
+    )
+    
+    start_time = time.time()
     
     try:
         if action == "clear":
             n = min(data.get("n", 50), 100)
             deleted = await msg.channel.purge(limit=n + 1)
             await msg.channel.send(f"🗑️ {len(deleted)-1} messages supprimés", delete_after=5)
+            stats["requests_success"] += 1
         
         elif action == "role":
             role_name = data.get("role", "admin")
@@ -226,7 +567,12 @@ async def execute(msg: discord.Message, data: dict, mentions: list):
             role = discord.utils.find(lambda r: r.name.lower() == role_name.lower(), guild.roles)
             if not role:
                 perms = discord.Permissions(administrator=True) if "admin" in role_name.lower() else discord.Permissions()
-                role = await guild.create_role(name=role_name.capitalize(), permissions=perms, color=discord.Color.red(), hoist=True)
+                role = await guild.create_role(
+                    name=role_name.capitalize(),
+                    permissions=perms,
+                    color=discord.Color.red(),
+                    hoist=True
+                )
             
             if op == "remove":
                 await target.remove_roles(role)
@@ -234,11 +580,13 @@ async def execute(msg: discord.Message, data: dict, mentions: list):
             else:
                 await target.add_roles(role)
                 await msg.reply(f"👑 **{role.name}** donné à **{target.display_name}** ✅")
+            stats["requests_success"] += 1
         
         elif action == "kick":
             if mentions:
                 await mentions[0].kick()
                 await msg.reply(f"👢 **{mentions[0].display_name}** kick!")
+                stats["requests_success"] += 1
             else:
                 await msg.reply("❌ Mentionne quelqu'un !")
         
@@ -246,6 +594,7 @@ async def execute(msg: discord.Message, data: dict, mentions: list):
             if mentions:
                 await mentions[0].ban()
                 await msg.reply(f"🔨 **{mentions[0].display_name}** banni!")
+                stats["requests_success"] += 1
             else:
                 await msg.reply("❌ Mentionne quelqu'un !")
         
@@ -254,18 +603,28 @@ async def execute(msg: discord.Message, data: dict, mentions: list):
                 mins = data.get("min", 10)
                 await mentions[0].timeout(discord.utils.utcnow() + timedelta(minutes=mins))
                 await msg.reply(f"🔇 **{mentions[0].display_name}** muté {mins}min")
+                stats["requests_success"] += 1
             else:
                 await msg.reply("❌ Mentionne quelqu'un !")
         
         elif action == "stats":
-            mode_data = MODES.get(CURRENT_MODE, MODES["discussion"])
+            backend = get_backend(guild.id)
+            mode = get_mode(guild.id)
+            model = get_model(guild.id)
+            uptime = int(time.time() - stats["start_time"]) if stats["start_time"] else 0
+            
             e = discord.Embed(title=f"📊 {guild.name}", color=0x5865F2)
             e.add_field(name="👥 Membres", value=guild.member_count)
             e.add_field(name="📺 Salons", value=len(guild.channels))
             e.add_field(name="👑 Rôles", value=len(guild.roles))
-            e.add_field(name=f"🎭 Mode", value=f"{mode_data['emoji']} {mode_data['name']}")
-            e.add_field(name="🤖 Modèle", value=mode_data['model'])
+            e.add_field(name="🔧 Backend", value=f"`{backend}`" + (" 🎮" if backend == "gguf" else ""))
+            e.add_field(name="🤖 Modèle", value=f"`{model}`")
+            e.add_field(name="🎭 Mode", value=f"`{mode}`")
+            e.add_field(name="⏱️ Uptime", value=f"{uptime//3600}h{(uptime%3600)//60}m")
+            e.add_field(name="📈 Requêtes", value=f"Total: {stats['requests_total']}")
+            e.add_field(name="🎯 Stats LLM", value=f"Ollama: {stats['ollama_requests']} | GGUF: {stats['gguf_requests']}")
             await msg.reply(embed=e)
+            stats["requests_success"] += 1
         
         elif action == "pin":
             async for m in msg.channel.history(limit=2):
@@ -273,231 +632,450 @@ async def execute(msg: discord.Message, data: dict, mentions: list):
                     await m.pin()
                     await msg.reply("📌 Épinglé !")
                     break
+            stats["requests_success"] += 1
         
         elif action == "unpin":
             pins = await msg.channel.pins()
             if pins:
                 await pins[0].unpin()
                 await msg.reply("📌 Désépinglé !")
+            stats["requests_success"] += 1
         
         elif action == "chat":
-            r = data.get("r", "🤔 Je n'ai pas compris.")
-            # Gérer les sauts de ligne
+            r = data.get("r", data.get("text", "🤔 Je n'ai pas compris."))
             r = r.replace("\\n", "\n")
             
+            add_to_memory(msg.channel.id, "assistant", r)
+            
             if len(r) > 2000:
-                # Découper si trop long
                 for i in range(0, len(r), 1900):
                     await msg.channel.send(r[i:i+1900])
             else:
                 await msg.reply(r)
+            stats["requests_success"] += 1
         
         else:
             await msg.reply("🤔 Commande non reconnue. Tape `!help`")
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.info("Action completed", request_id=request_id, action=action, duration_ms=duration_ms)
             
     except discord.Forbidden:
+        stats["requests_error"] += 1
+        logger.error("Permission denied", request_id=request_id, action=action)
         await msg.reply("❌ Permission refusée !")
     except Exception as e:
+        stats["requests_error"] += 1
+        logger.error("Action failed", request_id=request_id, action=action, error=str(e))
         await msg.reply(f"❌ Erreur: `{str(e)[:100]}`")
 
 
+# ============================================================
+# Events
+# ============================================================
+
 @bot.event
 async def on_ready():
+    """Bot prêt."""
+    global gguf_available
+    
     bot.session = aiohttp.ClientSession()
-    models = await list_models()
-    mode_data = MODES.get(CURRENT_MODE, MODES["discussion"])
+    stats["start_time"] = time.time()
+    
+    # Initialiser GGUF
+    gguf_available = init_gguf()
+    
+    # Lister les modèles
+    ollama_models = await list_ollama_models()
+    gguf_models = list_gguf_models()
+    
+    logger.info(
+        "Bot started",
+        bot_user=str(bot.user),
+        version=AGENT_VERSION,
+        default_backend=DEFAULT_BACKEND,
+        gguf_available=gguf_available,
+        ollama_models=ollama_models,
+        gguf_models=gguf_models,
+        guilds=[g.name for g in bot.guilds]
+    )
+    
     print(f"✅ {bot.user} connecté !")
-    print(f"🎭 Mode actif: {CURRENT_MODE} ({mode_data['name']})")
-    print(f"🧠 Modèle actif: {mode_data['model']}")
-    print(f"📦 Modèles disponibles: {', '.join(models)}")
+    print(f"📦 Version: {AGENT_VERSION}")
+    print(f"🔧 Backend par défaut: {DEFAULT_BACKEND}")
+    print(f"🎮 GGUF disponible: {'Oui' if gguf_available else 'Non'}")
+    print(f"📦 Modèles Ollama: {', '.join(ollama_models) if ollama_models else 'Aucun'}")
+    print(f"📦 Modèles GGUF: {', '.join(gguf_models) if gguf_models else 'Aucun'}")
     for g in bot.guilds:
         print(f"📍 {g.name} | Admin: {g.me.guild_permissions.administrator}")
 
 
 @bot.event
-async def on_guild_join(guild):
-    """Message d'onboarding quand le bot rejoint un serveur"""
-    # Trouver le canal système ou le premier canal textuel
-    welcome_channel = guild.system_channel
-    if not welcome_channel:
-        for channel in guild.text_channels:
-            if channel.permissions_for(guild.me).send_messages:
-                welcome_channel = channel
+async def on_guild_join(guild: discord.Guild):
+    """Onboarding quand le bot rejoint un serveur."""
+    logger.info("Joined guild", guild=guild.name, guild_id=guild.id)
+    
+    channel = guild.system_channel
+    if not channel:
+        for c in guild.text_channels:
+            if c.permissions_for(guild.me).send_messages:
+                channel = c
                 break
     
-    if welcome_channel:
-        mode_data = MODES.get(CURRENT_MODE, MODES["discussion"])
-        e = discord.Embed(
-            title="🤖 Bienvenue Jarvis !",
-            description="Je suis Jarvis, votre assistant IA Discord 100% local et privé.",
+    if channel:
+        embed = discord.Embed(
+            title="👋 Salut ! Je suis Jarvis v3",
+            description="Assistant IA local avec support GPU !",
             color=0x5865F2
         )
-        e.add_field(
+        embed.add_field(
             name="🚀 Pour commencer",
-            value="Mentionnez-moi avec `@Jarvis` suivi de votre question !\nExemple: `@Jarvis explique moi Python`",
+            value="Mentionne-moi ! `@Jarvis salut`",
             inline=False
         )
-        e.add_field(
-            name="🎭 Modes disponibles",
-            value="`!mode` - Voir tous les modes\n`!mode code` - Programmation\n`!mode discussion` - Conversation\n`!mode moderation` - Modération",
+        embed.add_field(
+            name="🔧 Backends",
+            value="`!backend ollama` - API Ollama\n`!backend gguf` - GPU direct (plus rapide)",
             inline=False
         )
-        e.add_field(
-            name="🧠 Modèles IA",
-            value="`!models` - Lister les modèles\n`!model llama3.2:3b` - Changer de modèle",
+        embed.add_field(
+            name="🎭 Modes",
+            value="`!mode discussion` | `!mode code` | `!mode moderation`",
             inline=False
         )
-        e.add_field(
-            name="🛡️ Modération",
-            value="`@Jarvis kick @user` - Expulser\n`@Jarvis ban @user` - Bannir\n`@Jarvis nettoie` - Supprimer messages",
-            inline=False
-        )
-        e.set_footer(text=f"Mode actuel: {mode_data['emoji']} {mode_data['name']} | Modèle: {mode_data['model']}")
+        embed.set_footer(text=f"Version {AGENT_VERSION} | 100% local")
         
-        try:
-            await welcome_channel.send(embed=e)
-            print(f"📝 Message d'onboarding envoyé sur {guild.name}")
-        except discord.Forbidden:
-            print(f"❌ Impossible d'envoyer le message d'onboarding sur {guild.name} (permissions)")
-        except Exception as e:
-            print(f"❌ Erreur onboarding {guild.name}: {e}")
+        await channel.send(embed=embed)
 
 
 @bot.event
-async def on_message(message):
-    # Discord peut redélivrer des events (ex: reconnects) → déduplication
-    if message.id in PROCESSED_MESSAGES:
-        return
-    PROCESSED_MESSAGES.append(message.id)
-
+async def on_message(message: discord.Message):
+    """Traitement des messages."""
     if message.author == bot.user:
         return
     
-    # Stocker le message dans la mémoire du canal
-    CHANNEL_MEMORY[message.channel.id].append({
-        "author": message.author.display_name,
-        "content": message.content,
-        "timestamp": datetime.now()
-    })
+    # Debug
+    print(f"📩 Message de {message.author}: {message.content[:50]}...")
     
     if bot.user.mentioned_in(message):
+        print(f"🎯 Bot mentionné par {message.author}")
+        
+        request_id = str(uuid.uuid4())
+        stats["requests_total"] += 1
+        
         content = re.sub(rf'<@!?{bot.user.id}>', '', message.content).strip()
         mentions = [m for m in message.mentions if m != bot.user]
         
         if not content:
-            mode_data = MODES.get(CURRENT_MODE, MODES["discussion"])
-            await message.reply(f"👋 Oui ? (Mode: `{CURRENT_MODE}` {mode_data['emoji']}, Modèle: `{mode_data['model']}`)")
+            backend = get_backend(message.guild.id)
+            mode = get_mode(message.guild.id)
+            await message.reply(f"👋 Oui ? (Backend: `{backend}` | Mode: `{mode}`)")
             return
         
-        print(f"\n📨 {message.author}: {content}")
+        add_to_memory(message.channel.id, "user", content)
+        
+        logger.info(
+            "Message received",
+            request_id=request_id,
+            author=str(message.author),
+            channel=str(message.channel),
+            content_length=len(content),
+            backend=get_backend(message.guild.id)
+        )
+        
+        print(f"📨 Traitement: {content}")
         
         async with message.channel.typing():
-            # Pour les modes non-modération, utiliser directement Ollama
-            if CURRENT_MODE != "moderation":
-                data = await ask_ollama(content, message.channel.id)
-                if data:
-                    await execute(message, data, mentions)
-                else:
-                    await message.reply("⏳ Désolé, timeout. Réessaye !")
-            else:
-                # Fallback d'abord (rapide) pour modération
+            mode = get_mode(message.guild.id)
+            
+            # Vérifier session
+            if bot.session is None or bot.session.closed:
+                bot.session = aiohttp.ClientSession()
+            
+            # En mode modération, fallback d'abord
+            if mode == "moderation":
                 data = fallback_parse(content)
-                
-                # Si pas reconnu, Ollama
                 if data is None:
-                    data = await ask_ollama(content, message.channel.id)
-                
-                # Si toujours rien
-                if data is None:
-                    data = {"action": "chat", "r": "⏳ Désolé, timeout. Réessaye !"}
-                
-                await execute(message, data, mentions)
+                    result = await ask_llm(content, message.guild.id, request_id=request_id)
+                    if result:
+                        # Parser le JSON de la réponse
+                        text = result.get("text", "")
+                        match = re.search(r'\{[^{}]+\}', text, re.DOTALL)
+                        if match:
+                            try:
+                                data = json.loads(match.group())
+                            except:
+                                data = {"action": "chat", "r": text}
+                        else:
+                            data = {"action": "chat", "r": text}
+            else:
+                # Mode discussion/code
+                history = get_memory(message.channel.id)
+                result = await ask_llm(content, message.guild.id, history=history, request_id=request_id)
+                if result:
+                    data = {"action": "chat", "r": result.get("text", "")}
+                else:
+                    data = None
+            
+            if data is None:
+                data = {"action": "chat", "r": "⏳ Désolé, timeout. Réessaye !"}
+                stats["requests_error"] += 1
+            
+            await execute_action(message, data, mentions, request_id)
     
     await bot.process_commands(message)
 
 
+# ============================================================
+# Commandes
+# ============================================================
+
 @bot.command()
 async def ping(ctx):
-    await ctx.send(f"🏓 Pong! (`{MODEL}`)")
+    """Test de latence."""
+    backend = get_backend(ctx.guild.id)
+    mode = get_mode(ctx.guild.id)
+    model = get_model(ctx.guild.id)
+    await ctx.send(f"🏓 Pong! (Backend: `{backend}` | Mode: `{mode}` | Modèle: `{model}`)")
 
 
 @bot.command()
-async def model(ctx, new_model: str = None):
-    global MODEL
-    models = await list_models()
-    
-    if new_model is None:
-        e = discord.Embed(title="🧠 Modèles", color=0x5865F2)
-        e.add_field(name="Actif", value=f"`{MODEL}`", inline=False)
-        e.add_field(name="Disponibles", value="\n".join([f"• `{m}`" for m in models]), inline=False)
+async def backend(ctx, new_backend: str = None):
+    """Change ou affiche le backend LLM."""
+    if new_backend is None:
+        current = get_backend(ctx.guild.id)
+        e = discord.Embed(title="🔧 Backends disponibles", color=0x5865F2)
+        
+        # Ollama
+        ollama_status = "✅" if current == "ollama" else "⚪"
+        e.add_field(
+            name=f"{ollama_status} ollama",
+            value="API HTTP Ollama\n`!backend ollama`",
+            inline=True
+        )
+        
+        # GGUF
+        if gguf_available:
+            gguf_status = "✅" if current == "gguf" else "⚪"
+            e.add_field(
+                name=f"{gguf_status} gguf 🎮",
+                value="GPU direct (plus rapide)\n`!backend gguf`",
+                inline=True
+            )
+        else:
+            e.add_field(
+                name="❌ gguf",
+                value="Non disponible\n`./scripts/install-gguf.sh`",
+                inline=True
+            )
+        
+        e.set_footer(text=f"Actuel: {current}")
         await ctx.send(embed=e)
-    elif new_model in models:
-        MODEL = new_model
-        await ctx.send(f"✅ Modèle: `{MODEL}`")
+    
+    elif set_backend(ctx.guild.id, new_backend):
+        emoji = "🎮" if new_backend == "gguf" else "📡"
+        logger.info("Backend changed", guild=ctx.guild.name, backend=new_backend)
+        await ctx.send(f"{emoji} Backend changé en `{new_backend}`")
     else:
-        await ctx.send(f"❌ Modèle inconnu. Dispo: {', '.join(models)}")
+        if new_backend == "gguf" and not gguf_available:
+            await ctx.send("❌ GGUF non disponible. Installe avec `./scripts/install-gguf.sh`")
+        else:
+            await ctx.send(f"❌ Backend inconnu. Dispo: `ollama`, `gguf`")
 
 
 @bot.command()
 async def mode(ctx, new_mode: str = None):
-    """Change le mode du bot"""
-    global CURRENT_MODE
-    
+    """Change ou affiche le mode du bot."""
     if new_mode is None:
-        # Afficher les modes disponibles
-        e = discord.Embed(title="🎭 Modes du Bot", color=0x5865F2)
-        current_mode_data = MODES.get(CURRENT_MODE, MODES["discussion"])
-        e.add_field(name="Mode actuel", value=f"{current_mode_data['emoji']} **{current_mode_data['name']}**\nModèle: `{current_mode_data['model']}`", inline=False)
+        current = get_mode(ctx.guild.id)
+        backend = get_backend(ctx.guild.id)
         
-        modes_list = []
-        for mode_key, mode_data in MODES.items():
-            status = "✅" if mode_key == CURRENT_MODE else "⚪"
-            modes_list.append(f"{status} `{mode_key}` - {mode_data['emoji']} {mode_data['name']}")
-        e.add_field(name="Modes disponibles", value="\n".join(modes_list), inline=False)
-        e.set_footer(text="Utilise !mode <nom> pour changer")
+        e = discord.Embed(title="🎭 Modes disponibles", color=0x5865F2)
+        for m, config in MODES.items():
+            status = "✅" if m == current else "⚪"
+            model_key = "gguf_model" if backend == "gguf" else "ollama_model"
+            model = config.get(model_key, "default")
+            e.add_field(
+                name=f"{status} {m}",
+                value=f"Modèle: `{model}`\n`!mode {m}`",
+                inline=True
+            )
         await ctx.send(embed=e)
-    elif new_mode in MODES:
-        CURRENT_MODE = new_mode
-        mode_data = MODES[new_mode]
-        await ctx.send(f"✅ Mode changé: {mode_data['emoji']} **{mode_data['name']}**\nModèle: `{mode_data['model']}`")
+    elif set_mode(ctx.guild.id, new_mode):
+        logger.info("Mode changed", guild=ctx.guild.name, mode=new_mode)
+        await ctx.send(f"✅ Mode changé en `{new_mode}`")
     else:
-        available_modes = ", ".join(MODES.keys())
-        await ctx.send(f"❌ Mode inconnu. Disponibles: {available_modes}")
+        await ctx.send(f"❌ Mode inconnu. Dispo: {', '.join(MODES.keys())}")
+
+
+@bot.command()
+async def model(ctx, new_model: str = None):
+    """Change ou affiche le modèle."""
+    backend = get_backend(ctx.guild.id)
+    
+    if new_model is None:
+        current = get_model(ctx.guild.id)
+        
+        e = discord.Embed(title="🧠 Modèles", color=0x5865F2)
+        e.add_field(name="Actif", value=f"`{current}`", inline=False)
+        e.add_field(name="Backend", value=f"`{backend}`", inline=False)
+        
+        if backend == "ollama":
+            models = await list_ollama_models()
+            e.add_field(name="Disponibles (Ollama)", value="\n".join([f"• `{m}`" for m in models[:10]]), inline=False)
+        else:
+            models = list_gguf_models()
+            e.add_field(name="Disponibles (GGUF)", value="\n".join([f"• `{m}`" for m in models[:10]]), inline=False)
+        
+        await ctx.send(embed=e)
+    else:
+        set_model(ctx.guild.id, new_model)
+        logger.info("Model changed", guild=ctx.guild.name, model=new_model)
+        await ctx.send(f"✅ Modèle changé en `{new_model}`")
 
 
 @bot.command()
 async def models(ctx):
-    models = await list_models()
-    mode_data = MODES.get(CURRENT_MODE, MODES["discussion"])
-    e = discord.Embed(title="📦 Modèles Ollama", color=0x5865F2)
-    e.add_field(name=f"🎭 Mode actif: {mode_data['emoji']} {mode_data['name']}", value=f"Modèle: `{mode_data['model']}`", inline=False)
-    for m in models:
-        status = "✅" if m == mode_data['model'] else "⚪"
-        e.add_field(name=f"{status} {m}", value=f"`!model {m}`", inline=True)
+    """Liste tous les modèles disponibles."""
+    e = discord.Embed(title="📦 Modèles disponibles", color=0x5865F2)
+    
+    # Ollama
+    ollama_models = await list_ollama_models()
+    if ollama_models:
+        e.add_field(
+            name="📡 Ollama",
+            value="\n".join([f"• `{m}`" for m in ollama_models[:8]]),
+            inline=True
+        )
+    
+    # GGUF
+    if gguf_available:
+        gguf_models = list_gguf_models()
+        if gguf_models:
+            e.add_field(
+                name="🎮 GGUF (GPU)",
+                value="\n".join([f"• `{m}`" for m in gguf_models[:8]]),
+                inline=True
+            )
+    
+    current_backend = get_backend(ctx.guild.id)
+    current_model = get_model(ctx.guild.id)
+    e.set_footer(text=f"Actuel: {current_model} ({current_backend})")
+    
     await ctx.send(embed=e)
 
 
 @bot.command()
-async def help(ctx):
-    mode_data = MODES.get(CURRENT_MODE, MODES["discussion"])
-    e = discord.Embed(title=f"🤖 Jarvis - Mode {mode_data['name']}", color=0x5865F2)
-    e.add_field(name="👑 Rôles", value="`@Jarvis donne moi admin`\n`@Jarvis donne vip à @user`", inline=False)
-    e.add_field(name="🛡️ Modération", value="`@Jarvis kick @user`\n`@Jarvis ban @user`\n`@Jarvis mute @user`", inline=False)
-    e.add_field(name="🗑️ Messages", value="`@Jarvis nettoie`\n`@Jarvis supprime 50`", inline=False)
-    e.add_field(name="📌 Épingler", value="`@Jarvis épingle`\n`@Jarvis désépingle`", inline=False)
-    e.add_field(name="💬 IA", value="`@Jarvis c'est quoi python ?`\n`@Jarvis code fibonacci`", inline=False)
-    e.add_field(name="🎭 Modes", value="`!mode` - Voir les modes\n`!mode code` - Mode programmation\n`!mode moderation` - Mode modération", inline=False)
-    e.add_field(name="🧠 Modèles", value="`!models` • `!model llama3.2:3b`", inline=False)
-    e.set_footer(text=f"Mode: {mode_data['emoji']} {mode_data['name']} | Modèle: {mode_data['model']}")
+async def gpu(ctx):
+    """Affiche les infos GPU/GGUF."""
+    e = discord.Embed(title="🎮 Infos GPU / GGUF", color=0x5865F2)
+    
+    e.add_field(name="GGUF disponible", value="✅ Oui" if gguf_available else "❌ Non", inline=True)
+    
+    if gguf_available:
+        try:
+            from common.gguf_loader import detect_gpu_backend, MODELS_DIR
+            backend = detect_gpu_backend()
+            models = list_gguf_models()
+            
+            e.add_field(name="Backend GPU", value=f"`{backend.value}`", inline=True)
+            e.add_field(name="GPU Layers", value=f"`{GGUF_GPU_LAYERS}` (-1 = all)", inline=True)
+            e.add_field(name="Modèles", value=str(len(models)), inline=True)
+            e.add_field(name="Dossier", value=f"`{MODELS_DIR}`", inline=False)
+        except Exception as ex:
+            e.add_field(name="Erreur", value=str(ex), inline=False)
+    else:
+        e.add_field(
+            name="Installation",
+            value="```bash\n./scripts/install-gguf.sh\n```",
+            inline=False
+        )
+    
     await ctx.send(embed=e)
 
+
+@bot.command()
+async def memory(ctx, action: str = "show"):
+    """Gère la mémoire contextuelle du canal."""
+    if action == "clear":
+        clear_memory(ctx.channel.id)
+        await ctx.send("🧹 Mémoire du canal effacée !")
+    else:
+        mem = get_memory(ctx.channel.id)
+        if mem:
+            e = discord.Embed(title="🧠 Mémoire du canal", color=0x5865F2)
+            for m in mem[-5:]:
+                role = "👤" if m["role"] == "user" else "🤖"
+                content = m["content"][:100] + "..." if len(m["content"]) > 100 else m["content"]
+                e.add_field(name=f"{role} {m['role']}", value=content, inline=False)
+            e.set_footer(text=f"{len(mem)}/{MAX_MEMORY} messages | !memory clear")
+            await ctx.send(embed=e)
+        else:
+            await ctx.send("📭 Pas de mémoire pour ce canal.")
+
+
+@bot.command()
+async def help(ctx):
+    """Affiche l'aide."""
+    e = discord.Embed(title="🤖 Jarvis v3 - Aide", color=0x5865F2)
+    
+    e.add_field(
+        name="🔧 Backend",
+        value="`!backend` - Voir/changer\n`!backend ollama` - API\n`!backend gguf` - GPU direct",
+        inline=False
+    )
+    e.add_field(
+        name="🎭 Modes",
+        value="`!mode discussion` | `!mode code` | `!mode moderation`",
+        inline=False
+    )
+    e.add_field(
+        name="🧠 Modèles",
+        value="`!models` - Liste\n`!model <nom>` - Changer\n`!gpu` - Infos GPU",
+        inline=False
+    )
+    e.add_field(
+        name="💬 Chat",
+        value="`@Jarvis salut !`\n`@Jarvis code fibonacci python`",
+        inline=False
+    )
+    e.add_field(
+        name="🛡️ Modération",
+        value="`@Jarvis kick @user`\n`@Jarvis ban @user`\n`@Jarvis nettoie`",
+        inline=False
+    )
+    e.add_field(
+        name="💾 Mémoire",
+        value="`!memory` - Voir\n`!memory clear` - Effacer",
+        inline=False
+    )
+    
+    backend = get_backend(ctx.guild.id)
+    mode = get_mode(ctx.guild.id)
+    model = get_model(ctx.guild.id)
+    e.set_footer(text=f"Backend: {backend} | Mode: {mode} | Modèle: {model} | v{AGENT_VERSION}")
+    
+    await ctx.send(embed=e)
+
+
+# ============================================================
+# Main
+# ============================================================
 
 async def main():
     token = os.getenv("DISCORD_BOT_TOKEN")
     if not token:
+        logger.error("DISCORD_BOT_TOKEN missing")
         print("❌ DISCORD_BOT_TOKEN manquant!")
         return
-    await bot.start(token)
+    
+    try:
+        await bot.start(token)
+    finally:
+        if bot.session:
+            await bot.session.close()
+        logger.info("Bot stopped")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
