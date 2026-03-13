@@ -1,0 +1,18 @@
+# Dockerfile for Local Agents (Python)
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Copy requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy agents
+COPY agents ./agents
+COPY scripts/start_agents.sh ./scripts/
+
+# Make script executable
+RUN chmod +x scripts/start_agents.sh
+
+# Run agents
+CMD ["./scripts/start_agents.sh"]

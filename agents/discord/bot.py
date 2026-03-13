@@ -17,7 +17,7 @@ bot.session = None
 MODEL = "llama3.2:3b"
 # ============================================================
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 
 SYSTEM_PROMPT = """Tu es Jarvis, un assistant Discord. Analyse et retourne UNIQUEMENT un JSON valide.
 

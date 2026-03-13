@@ -1,0 +1,79 @@
+# Configuration Local Agents
+# ===========================
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  websocket_path: "/ws"
+
+ollama:
+  base_url: "http://ollama:11434"
+  default_model: "qwen2:1.5b"  # Modèle par défaut
+  models:
+    coding: "qwen2:1.5b"    # Pour le code
+    general: "qwen2:1.5b"   # Usage général
+    fast: "qwen2:1.5b"      # Réponses rapides
+
+agents:
+  coder:
+    enabled: true
+    prompt_file: "prompts/coder.md"
+    model: "coding"
+    tools:
+      - "vscode"
+      - "git"
+      - "terminal"
+      - "filesystem"
+      - "discord" 
+  
+  files:
+    enabled: true
+    prompt_file: "prompts/files.md"
+    model: "general"
+    tools:
+      - "filesystem"
+      - "clipboard"
+    allowed_paths:
+      - "${HOME}/Documents"
+      - "${HOME}/Projects"
+      - "/tmp"
+  
+  email:
+    enabled: true
+    prompt_file: "prompts/email.md"
+    model: "general"
+    smtp:
+      host: "smtp.gmail.com"
+      port: 587
+      # Credentials via env: EMAIL_USER, EMAIL_PASS
+    imap:
+      host: "imap.gmail.com"
+      port: 993
+  
+  social:
+    enabled: true
+    prompt_file: "prompts/social.md"
+    model: "general"
+    platforms:
+      - "twitter"
+      - "linkedin"
+  
+  discord:
+    enabled: true
+    prompt_file: "prompts/discord.md"
+    model: "fast"
+    Token via env: DISCORD_BOT_TOKEN
+
+storage:
+  type: "sqlite"
+  path: "data/agents.db"
+
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json"
+  file: "logs/agents.log"
+
+queue:
+  type: "memory"  # memory ou redis
+  max_concurrent: 5
+  task_timeout: "5m"

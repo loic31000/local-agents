@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    ports:
+      - "8080:8080"
+    depends_on:
+      - ollama
+    volumes:
+      - ./config.docker.yaml:/root/config.yaml
+      - ./web:/root/web
+      - ./prompts:/root/prompts
+    restart: unless-stopped
+
+  agents:
+    build:
+      context: .
+      dockerfile: Dockerfile.agents
+    depends_on:
+      - ollama
+      - orchestrator
+    environment:
+      - OLLAMA_URL=http://ollama:11434/api/generate
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  ollama_data:

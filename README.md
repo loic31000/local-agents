@@ -88,6 +88,30 @@ nano .env                    # Ajoute ton token Discord
 
 🎉 **Interface web** → http://localhost:8080
 
+### 🐳 Installation avec Docker
+
+Pour une installation simplifiée avec Docker :
+
+```bash
+# 1. Clone le repo
+git clone https://github.com/loic31000/local-agents.git
+cd local-agents
+
+# 2. Configure ton environnement
+cp .env.example .env
+nano .env                    # Ajoute ton token Discord
+
+# 3. Lance avec Docker Compose
+docker-compose up --build
+
+# Les modèles Ollama seront téléchargés automatiquement
+```
+
+**Services Docker :**
+- `ollama` : Serveur IA (port 11434)
+- `orchestrator` : Serveur web Go (port 8080)
+- `agents` : Agents Python (Discord, etc.)
+
 ---
 
 ## 🤖 Bot Discord "Jarvis"
