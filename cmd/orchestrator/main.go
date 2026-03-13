@@ -184,6 +184,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 
 	// API REST
 	router.HandleFunc("/api/health", o.handleHealth).Methods("GET")
+	router.HandleFunc("/api/config", o.handleConfig).Methods("GET")
 	router.HandleFunc("/api/agents", o.handleListAgents).Methods("GET")
 	router.HandleFunc("/api/agents/{id}", o.handleGetAgent).Methods("GET")
 	router.HandleFunc("/api/tasks", o.handleCreateTask).Methods("POST")
@@ -297,6 +298,19 @@ func (o *Orchestrator) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (o *Orchestrator) handleConfig(w http.ResponseWriter, r *http.Request) {
+	// Return configuration without secrets
+	config := map[string]interface{}{
+		"server": o.config.Server,
+		"ollama": o.config.Ollama,
+		"agents": o.config.Agents,
+		"storage": o.config.Storage,
+		"logging": o.config.Logging,
+		"queue": o.config.Queue,
+	}
+	json.NewEncoder(w).Encode(config)
+}
+
 func (o *Orchestrator) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	agents := make([]agent.AgentInfo, 0, len(o.agents))
 	for _, a := range o.agents {
@@ -372,6 +386,7 @@ func (o *Orchestrator) handleChat(w http.ResponseWriter, r *http.Request) {
 		Type:      agent.TaskTypeChat,
 		Input:     req.Message,
 		CreatedAt: time.Now(),
+		Context:   map[string]interface{}{"model": req.Model},
 	}
 
 	agentInstance, ok := o.agents[agentID]

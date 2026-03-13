@@ -1,0 +1,70 @@
+# Configuration Local Agents - Discord Community
+# ============================================
+# Optimisée pour un serveur Discord communautaire
+# Modération, assistance IA, génération de code
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  websocket_path: "/ws"
+
+ollama:
+  base_url: "http://localhost:11434"
+  default_model: "mistral:7b"
+  models:
+    coding: "llama3.2:3b"
+    general: "mistral:7b"
+    fast: "phi3:mini"
+
+agents:
+  coder:
+    enabled: true
+    prompt_file: "prompts/coder.md"
+    model: "coding"
+    tools:
+      - "vscode"
+      - "git"
+      - "terminal"
+      - "filesystem"
+      - "discord"
+
+  files:
+    enabled: true
+    prompt_file: "prompts/files.md"
+    model: "general"
+    tools:
+      - "filesystem"
+    allowed_paths:
+      - "${HOME}/Documents"
+      - "${HOME}/Projects"
+      - "/tmp"
+
+  email:
+    enabled: false  # Pas nécessaire pour Discord
+
+  social:
+    enabled: true
+    prompt_file: "prompts/social.md"
+    model: "general"
+    platforms:
+      - "twitter"
+      - "linkedin"
+
+  discord:
+    enabled: true
+    prompt_file: "prompts/discord.md"
+    model: "fast"
+
+storage:
+  type: "sqlite"
+  path: "data/agents.db"
+
+logging:
+  level: "info"
+  format: "json"
+  file: "logs/agents.log"
+
+queue:
+  type: "memory"
+  max_concurrent: 10  # Plus de concurrence pour communauté
+  task_timeout: "5m"

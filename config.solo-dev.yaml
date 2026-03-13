@@ -1,0 +1,65 @@
+# Configuration Local Agents - Solo Dev
+# ===================================
+# Optimisée pour un développeur travaillant seul
+# Tous les outils activés, logs détaillés
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  websocket_path: "/ws"
+
+ollama:
+  base_url: "http://localhost:11434"
+  default_model: "llama3.2:3b"
+  models:
+    coding: "llama3.2:3b"
+    general: "llama3.2:3b"
+    fast: "phi3:mini"
+
+agents:
+  coder:
+    enabled: true
+    prompt_file: "prompts/coder.md"
+    model: "coding"
+    tools:
+      - "vscode"
+      - "git"
+      - "terminal"
+      - "filesystem"
+      - "discord"
+
+  files:
+    enabled: true
+    prompt_file: "prompts/files.md"
+    model: "general"
+    tools:
+      - "filesystem"
+      - "clipboard"
+    allowed_paths:
+      - "${HOME}/Projects"
+      - "${HOME}/Documents"
+      - "${HOME}/Desktop"
+      - "/tmp"
+
+  email:
+    enabled: false  # Désactivé pour dev solo
+
+  social:
+    enabled: false  # Désactivé pour dev solo
+
+  discord:
+    enabled: false  # Désactivé pour dev solo
+
+storage:
+  type: "sqlite"
+  path: "data/agents.db"
+
+logging:
+  level: "debug"  # Logs détaillés pour debug
+  format: "json"
+  file: "logs/agents.log"
+
+queue:
+  type: "memory"
+  max_concurrent: 5
+  task_timeout: "5m"

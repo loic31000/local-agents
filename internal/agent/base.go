@@ -64,8 +64,16 @@ func (a *BaseAgent) Execute(ctx context.Context, task *Task) (*Result, error) {
 	// Construire les messages
 	messages := a.buildMessages(task)
 
+	// Déterminer le modèle à utiliser (possibilité d'override via task.Context)
+	model := a.info.Model
+	if task != nil && task.Context != nil {
+		if m, ok := task.Context["model"].(string); ok && m != "" && m != "default" {
+			model = m
+		}
+	}
+
 	// Appeler le LLM
-	response, err := a.ollamaClient.Chat(ctx, a.info.Model, messages, &llm.Options{
+	response, err := a.ollamaClient.Chat(ctx, model, messages, &llm.Options{
 		Temperature: 0.7,
 	})
 	if err != nil {

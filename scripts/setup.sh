@@ -197,13 +197,19 @@ start_discord_bot() {
         log_warn "Configure ton token dans .env ou avec: export DISCORD_BOT_TOKEN='...'"
         return
     fi
-    
+
+    # Ne pas démarrer si déjà en cours
+    if pgrep -f "python .*agents/discord/bot.py" > /dev/null; then
+        log_warn "Bot Discord déjà en cours d'exécution, saut du démarrage"
+        return
+    fi
+
     log_info "Démarrage du bot Discord..."
-    
+
     source venv/bin/activate
     python agents/discord/bot.py &
     DISCORD_PID=$!
-    
+
     echo $DISCORD_PID > .discord.pid
     log_success "Bot Discord démarré (PID: $DISCORD_PID)"
 }
@@ -211,17 +217,24 @@ start_discord_bot() {
 # Arrêter tous les services
 stop_all() {
     log_info "Arrêt des services..."
-    
+
     if [ -f .orchestrator.pid ]; then
         kill $(cat .orchestrator.pid) 2>/dev/null || true
         rm .orchestrator.pid
         log_success "Orchestrateur arrêté"
     fi
-    
+
     if [ -f .discord.pid ]; then
         kill $(cat .discord.pid) 2>/dev/null || true
         rm .discord.pid
-        log_success "Bot Discord arrêté"
+        log_success "Bot Discord arrêté (pid file)"
+    fi
+
+    # Assurer l'arrêt de tout bot Python en double
+    if pgrep -f "python .*agents/discord/bot.py" > /dev/null; then
+        log_warn "Des instances du bot Discord tournent encore, arrêt en cours..."
+        pkill -f "python .*agents/discord/bot.py" || true
+        log_success "Bot Discord arrêté (pkill)"
     fi
 }
 

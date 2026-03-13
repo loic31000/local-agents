@@ -1,0 +1,60 @@
+# Configuration Local Agents - Low RAM (4-8GB)
+# =========================================
+# Optimisée pour machines avec peu de RAM
+# Modèles légers, outils limités, stockage en mémoire
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  websocket_path: "/ws"
+
+ollama:
+  base_url: "http://localhost:11434"
+  default_model: "phi3:mini"
+  models:
+    coding: "phi3:mini"
+    general: "phi3:mini"
+    fast: "phi3:mini"
+
+agents:
+  coder:
+    enabled: true
+    prompt_file: "prompts/coder.md"
+    model: "coding"
+    tools:
+      - "vscode"
+      - "terminal"  # Outils légers seulement
+
+  files:
+    enabled: true
+    prompt_file: "prompts/files.md"
+    model: "general"
+    tools:
+      - "filesystem"
+    allowed_paths:
+      - "${HOME}/Documents"
+      - "/tmp"
+
+  email:
+    enabled: false  # Désactivé pour économiser RAM
+
+  social:
+    enabled: false  # Désactivé pour économiser RAM
+
+  discord:
+    enabled: true
+    prompt_file: "prompts/discord.md"
+    model: "fast"
+
+storage:
+  type: "memory"  # Pas de DB persistante pour économiser RAM
+
+logging:
+  level: "warn"  # Moins de logs pour économiser ressources
+  format: "json"
+  file: "logs/agents.log"
+
+queue:
+  type: "memory"
+  max_concurrent: 2  # Limiter la concurrence
+  task_timeout: "3m"  # Timeout plus court
