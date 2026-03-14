@@ -335,3 +335,9 @@ tools:
   #   config:
   #     max_results: 10
   #     safe_search: true
+# BitNet (ajouté par bitnet-install)
+bitnet:
+  model_id: "microsoft/bitnet-b1.58-2B-4T"
+  model_path: "~/.local-agents/models/bitnet/model"
+  n_threads: 4
+  context_size: 2048
