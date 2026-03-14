@@ -15,7 +15,7 @@ import (
 type BaseAgent struct {
 	info         AgentInfo
 	systemPrompt string
-	ollamaClient *llm.OllamaClient
+	router       *llm.BackendRouter  // ← remplace ollamaClient
 	tools        []Tool
 	conversation *Conversation
 }
@@ -25,7 +25,7 @@ func NewBaseAgent(info AgentInfo, systemPrompt string, client *llm.OllamaClient)
 	return &BaseAgent{
 		info:         info,
 		systemPrompt: systemPrompt,
-		ollamaClient: client,
+		router:       llm.NewBackendRouter(client.BaseURL()),
 		tools:        make([]Tool, 0),
 		conversation: &Conversation{
 			ID:        fmt.Sprintf("conv-%d", time.Now().UnixNano()),
@@ -61,19 +61,20 @@ func (a *BaseAgent) CanHandle(task *Task) bool {
 func (a *BaseAgent) Execute(ctx context.Context, task *Task) (*Result, error) {
 	startTime := time.Now()
 
-	// Construire les messages
 	messages := a.buildMessages(task)
 
-	// Déterminer le modèle à utiliser (possibilité d'override via task.Context)
+	// Déterminer le modèle — pour Mock, passer l'agent_id comme modèle
 	model := a.info.Model
-	if task != nil && task.Context != nil {
+	if a.router.ActiveBackend() == llm.BackendMock {
+		model = a.info.ID // MockClient utilise l'ID agent pour choisir la réponse
+	} else if task != nil && task.Context != nil {
 		if m, ok := task.Context["model"].(string); ok && m != "" && m != "default" {
 			model = m
 		}
 	}
 
-	// Appeler le LLM
-	response, err := a.ollamaClient.Chat(ctx, model, messages, &llm.Options{
+	// Router vers le bon backend (Mock / BitNet / Ollama)
+	response, err := a.router.Chat(ctx, model, messages, &llm.Options{
 		Temperature: 0.7,
 	})
 	if err != nil {
@@ -81,13 +82,12 @@ func (a *BaseAgent) Execute(ctx context.Context, task *Task) (*Result, error) {
 			TaskID:      task.ID,
 			AgentID:     a.info.ID,
 			Success:     false,
-			Error:       err.Error(),
+			Error:       fmt.Sprintf("[%s] %s", a.router.ActiveBackend(), err.Error()),
 			Duration:    time.Since(startTime),
 			CompletedAt: time.Now(),
 		}, err
 	}
 
-	// Parser la réponse pour détecter les appels d'outils
 	output, actions, err := a.processResponse(ctx, response.Message.Content)
 	if err != nil {
 		return &Result{
@@ -101,7 +101,6 @@ func (a *BaseAgent) Execute(ctx context.Context, task *Task) (*Result, error) {
 		}, nil
 	}
 
-	// Ajouter à l'historique
 	a.conversation.Messages = append(a.conversation.Messages, Message{
 		Role:      "user",
 		Content:   task.Input,
@@ -125,11 +124,9 @@ func (a *BaseAgent) Execute(ctx context.Context, task *Task) (*Result, error) {
 	}, nil
 }
 
-// buildMessages construit la liste des messages pour le LLM
 func (a *BaseAgent) buildMessages(task *Task) []llm.Message {
 	messages := make([]llm.Message, 0)
 
-	// System prompt avec description des outils
 	systemPrompt := a.systemPrompt
 	if len(a.tools) > 0 {
 		systemPrompt += "\n\n## Outils disponibles\n\n"
@@ -142,37 +139,22 @@ func (a *BaseAgent) buildMessages(task *Task) []llm.Message {
 		}
 	}
 
-	messages = append(messages, llm.Message{
-		Role:    "system",
-		Content: systemPrompt,
-	})
+	messages = append(messages, llm.Message{Role: "system", Content: systemPrompt})
 
-	// Ajouter l'historique de conversation (limité aux 10 derniers messages)
 	historyStart := 0
 	if len(a.conversation.Messages) > 10 {
 		historyStart = len(a.conversation.Messages) - 10
 	}
 	for _, msg := range a.conversation.Messages[historyStart:] {
-		messages = append(messages, llm.Message{
-			Role:    msg.Role,
-			Content: msg.Content,
-		})
+		messages = append(messages, llm.Message{Role: msg.Role, Content: msg.Content})
 	}
 
-	// Ajouter la nouvelle tâche
-	messages = append(messages, llm.Message{
-		Role:    "user",
-		Content: task.Input,
-	})
-
+	messages = append(messages, llm.Message{Role: "user", Content: task.Input})
 	return messages
 }
 
-// processResponse traite la réponse du LLM et exécute les outils si nécessaire
 func (a *BaseAgent) processResponse(ctx context.Context, content string) (string, []ActionTaken, error) {
 	actions := make([]ActionTaken, 0)
-
-	// Regex pour détecter les appels d'outils
 	toolPattern := regexp.MustCompile("(?s)```tool\\s*\\n(.+?)\\n```")
 	matches := toolPattern.FindAllStringSubmatch(content, -1)
 
@@ -185,8 +167,6 @@ func (a *BaseAgent) processResponse(ctx context.Context, content string) (string
 		if len(match) < 2 {
 			continue
 		}
-
-		// Parser l'appel d'outil
 		var toolCall struct {
 			Tool   string                 `json:"tool"`
 			Params map[string]interface{} `json:"params"`
@@ -194,15 +174,12 @@ func (a *BaseAgent) processResponse(ctx context.Context, content string) (string
 		if err := json.Unmarshal([]byte(match[1]), &toolCall); err != nil {
 			continue
 		}
-
-		// Trouver et exécuter l'outil
 		action := ActionTaken{
 			Tool:      toolCall.Tool,
 			Action:    "execute",
 			Params:    toolCall.Params,
 			Timestamp: time.Now(),
 		}
-
 		for _, tool := range a.tools {
 			if tool.Name() == toolCall.Tool {
 				result, err := tool.Execute(ctx, toolCall.Params)
@@ -216,24 +193,19 @@ func (a *BaseAgent) processResponse(ctx context.Context, content string) (string
 				break
 			}
 		}
-
 		actions = append(actions, action)
-
-		// Remplacer l'appel d'outil par le résultat dans la sortie
 		if action.Success {
 			resultJSON, _ := json.Marshal(action.Result)
 			output = strings.Replace(output, match[0],
-				fmt.Sprintf("[Outil %s exécuté avec succès: %s]", action.Tool, string(resultJSON)), 1)
+				fmt.Sprintf("[Outil %s exécuté: %s]", action.Tool, string(resultJSON)), 1)
 		} else {
 			output = strings.Replace(output, match[0],
 				fmt.Sprintf("[Erreur outil %s: %s]", action.Tool, action.Error), 1)
 		}
 	}
-
 	return output, actions, nil
 }
 
-// ResetConversation réinitialise l'historique de conversation
 func (a *BaseAgent) ResetConversation() {
 	a.conversation = &Conversation{
 		ID:        fmt.Sprintf("conv-%d", time.Now().UnixNano()),
@@ -244,7 +216,6 @@ func (a *BaseAgent) ResetConversation() {
 	}
 }
 
-// GetConversation retourne la conversation actuelle
 func (a *BaseAgent) GetConversation() *Conversation {
 	return a.conversation
 }

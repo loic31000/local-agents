@@ -42,8 +42,10 @@ logger = get_logger("llm_client")
 
 class LLMBackend(Enum):
     """Backends LLM supportés."""
-    OLLAMA = "ollama"
-    GGUF = "gguf"
+    OLLAMA  = "ollama"
+    GGUF    = "gguf"
+    MOCK    = "mock"
+    BITNET  = "bitnet"
 
 
 @dataclass
@@ -393,6 +395,20 @@ class LLMClient:
                 n_gpu_layers=n_gpu_layers,
                 n_threads=n_threads
             )
+        elif self.backend_type == LLMBackend.MOCK:
+            from common.mock_provider import MockProvider
+            self._provider = MockProvider(
+                agent_id=kwargs.pop("agent_id", "_default"),
+                simulate_delay=kwargs.pop("simulate_delay", True),
+            )
+
+        elif self.backend_type == LLMBackend.BITNET:
+            from common.bitnet_provider import BitNetProvider
+            self._provider = BitNetProvider(
+                model_path=kwargs.get("model_path"),
+                n_threads=kwargs.get("n_threads", 4),
+            )
+
         else:
             raise ValueError(f"Backend inconnu: {backend}")
         
@@ -505,8 +521,11 @@ def create_client(
         LLMClient configuré
     """
     if backend == "auto":
-        # Auto-détection: si model_path fourni -> GGUF, sinon Ollama
-        if "model_path" in kwargs:
+        import os
+        env_backend = os.getenv("BACKEND", "")
+        if env_backend in ("mock", "bitnet", "ollama", "gguf"):
+            backend = env_backend
+        elif "model_path" in kwargs:
             backend = "gguf"
         else:
             backend = "ollama"

@@ -207,3 +207,8 @@ func (c *OllamaClient) Ping(ctx context.Context) error {
 
 	return nil
 }
+
+// BaseURL retourne l'URL de base du client
+func (c *OllamaClient) BaseURL() string {
+	return c.baseURL
+}
