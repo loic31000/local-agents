@@ -1,7 +1,39 @@
-# Local Agents
+<div align="center">
 
-Framework d'agents IA **100 % local** — orchestrateur Go, agents Python, bot Discord Jarvis, sécurité intégrée.
-Aucun cloud requis. Fonctionne sur CPU, GPU AMD / NVIDIA / Apple Silicon.
+# 🤖 Local Agents
+
+[![Version](https://img.shields.io/badge/version-3.0.0-blue?style=for-the-badge)](https://github.com/loic31000/local-agents/releases)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
+[![100% Local](https://img.shields.io/badge/100%25-Local-brightgreen?style=for-the-badge)](https://github.com/loic31000/local-agents)
+
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Ollama](https://img.shields.io/badge/Ollama-powered-black?style=for-the-badge)](https://ollama.com)
+[![GGUF](https://img.shields.io/badge/GGUF-GPU%20Support-red?style=for-the-badge)](docs/GGUF.md)
+
+[![Discord](https://img.shields.io/badge/Discord-Bot%20Jarvis-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/developers/applications)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docs.docker.com/compose)
+[![AMD ROCm](https://img.shields.io/badge/AMD-ROCm-ED1C24?style=for-the-badge&logo=amd&logoColor=white)](https://rocm.docs.amd.com)
+[![NVIDIA CUDA](https://img.shields.io/badge/NVIDIA-CUDA-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](https://developer.nvidia.com/cuda-toolkit)
+[![Apple Silicon](https://img.shields.io/badge/Apple-Silicon-000000?style=for-the-badge&logo=apple&logoColor=white)](https://developer.apple.com/metal)
+
+**Framework d'agents IA 100 % local — orchestrateur Go, agents Python, bot Discord Jarvis, sécurité intégrée.**
+
+*Aucun cloud requis. Fonctionne sur CPU, GPU AMD / NVIDIA / Apple Silicon.*
+
+[Installation](#démarrage-rapide) •
+[Architecture](#architecture) •
+[Agents](#agents) •
+[CyberDefence](#cyberdefence) •
+[Dashboard](#dashboard-web) •
+[GPU](#gpu) •
+[Docker](#docker) •
+[Changelog](CHANGELOG.md) •
+[Roadmap](ROADMAP.md)
+
+</div>
+
+---
 
 ![Dashboard Chat](docs/screenshots/chatAgent.png)
 
@@ -20,6 +52,7 @@ Aucun cloud requis. Fonctionne sur CPU, GPU AMD / NVIDIA / Apple Silicon.
 - [GPU](#gpu)
 - [Docker](#docker)
 - [Développement](#développement)
+- [Comparaison](#comparaison)
 
 ---
 
@@ -27,27 +60,27 @@ Aucun cloud requis. Fonctionne sur CPU, GPU AMD / NVIDIA / Apple Silicon.
 
 | Catégorie | Détail |
 |-----------|--------|
-| Orchestration | Routing intelligent, queue de tâches, workers concurrents, WebSocket temps réel |
-| Agents | Coder, Files, Email, Social, Discord — extensibles sans modifier le code Go |
-| LLM | Double backend Ollama / GGUF, fallback automatique, support multi-GPU |
-| Sécurité | Rate limiting, détection prompt injection, anti-replay, blocage IP, alertes Discord |
-| Dashboard | Chat par agent, monitoring CyberDefence, gestion modèles Ollama, paramètres |
-| Bot Discord | Jarvis — commandes naturelles, modération, mémoire contextuelle, modes adaptatifs |
+| 🔀 Orchestration | Routing intelligent, queue de tâches, workers concurrents, WebSocket temps réel |
+| 🤖 Agents | Coder, Files, Email, Social, Discord — extensibles sans modifier le code Go |
+| 🧠 LLM | Double backend Ollama / GGUF, fallback automatique, support multi-GPU |
+| 🛡️ Sécurité | Rate limiting, détection prompt injection, anti-replay, blocage IP, alertes Discord |
+| 🌐 Dashboard | Chat par agent, monitoring CyberDefence, gestion modèles Ollama, paramètres |
+| 🎮 Bot Discord | Jarvis — commandes naturelles, modération, mémoire contextuelle, modes adaptatifs |
 
 ---
 
 ## Démarrage rapide
 
-### Docker — Linux et Windows (recommandé)
+### 🐳 Docker — Linux et Windows (recommandé)
 
 ```bash
 # 1. Cloner le projet
-git clone https://github.com/ton-user/local-agents
+git clone https://github.com/loic31000/local-agents
 cd local-agents
 
 # 2. Configurer l'environnement
 cp .env.example .env
-# Éditer .env : DISCORD_TOKEN, EMAIL_USER, CYBERDEFENCE_DISCORD_WEBHOOK…
+# Éditer .env : DISCORD_TOKEN, EMAIL_USER, CYBERDEFENCE_DISCORD_WEBHOOK
 
 # 3. Lancer
 docker compose up -d
@@ -59,12 +92,10 @@ docker compose exec ollama ollama pull llama3.2:3b
 #    http://localhost:8081
 ```
 
-> Windows : Docker Desktop suffit, aucun WSL requis.
-> GPU : voir la section [GPU](#gpu) pour l'accélération matérielle.
+> **Windows** : Docker Desktop suffit, aucun WSL requis.
+> **GPU** : voir la section [GPU](#gpu) pour l'accélération matérielle.
 
----
-
-### Local — Linux / macOS
+### 🐧 Local — Linux / macOS
 
 ```bash
 # Prérequis : Go 1.22+, Python 3.10+, Ollama
@@ -80,17 +111,17 @@ set -a && source .env && set +a
 python -m agents.cyberdefence.agent
 ```
 
----
-
-### Commandes Justfile
+### ⚡ Commandes Justfile
 
 ```bash
-just start       # démarre orchestrateur + agents
-just stop        # arrête tout proprement
-just status      # état des services
-just logs        # tail des logs
-just models      # télécharge les modèles configurés
-just test        # lance les tests
+just start            # démarre orchestrateur + agents
+just stop             # arrête tout proprement
+just status           # état des services
+just logs             # tail des logs
+just models           # télécharge les modèles configurés
+just test             # lance les tests
+just cyberdefence     # démarre uniquement CyberDefence
+just gpu              # infos GPU
 ```
 
 ---
@@ -115,36 +146,35 @@ just test        # lance les tests
 +--------------+   +----------------------+
 ```
 
-Protocole : chaque requête orchestrateur vers agent suit le schéma JSON documenté dans `docs/PROTOCOL.md`.
+Protocole : chaque requête suit le schéma JSON documenté dans [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
+
 Agents externes : déclarés avec `type: external` et `port: XXXX` dans `config.yaml`, pingés directement par CyberDefence.
 
 ---
 
 ## Agents
 
-### Coder
+### 💻 Coder
 
 Génère, révise et débogue du code. Outillé : `filesystem`, `terminal`, `git`, `vscode`.
 
 ```bash
-curl -X POST http://localhost:8081/api/chat/coder \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Génère une fonction Python qui parse un CSV"}'
+curl -X POST http://localhost:8081/api/chat/coder   -H "Content-Type: application/json"   -d '{"message": "Génère une fonction Python qui parse un CSV"}'
 ```
 
-### Files
+### 📁 Files
 
 Lecture, écriture et recherche de fichiers locaux avec restrictions de chemins configurables.
 
-### Email
+### ✉️ Email
 
 Rédaction et envoi via SMTP. Configurer `EMAIL_SMTP_HOST`, `EMAIL_USER`, `EMAIL_PASS` dans `.env`.
 
-### Social
+### 🐦 Social
 
 Publication Twitter / LinkedIn. Désactivé par défaut (`enabled: false`).
 
-### Discord — Jarvis
+### 🎮 Discord — Jarvis
 
 ```
 @Jarvis aide-moi à déboguer ce code Python
@@ -161,7 +191,8 @@ Modes disponibles : `discussion`, `code`, `moderation`.
 
 ## CyberDefence
 
-Agent de surveillance sans LLM — logique déterministe uniquement. Tourne en parallèle de tous les autres agents.
+Agent de surveillance sans LLM — logique déterministe uniquement.
+Tourne en parallèle de tous les autres agents et surveille l'ensemble du framework en temps réel.
 
 ![CyberDefence Dashboard](docs/screenshots/cyberdefence.png)
 
@@ -169,29 +200,29 @@ Agent de surveillance sans LLM — logique déterministe uniquement. Tourne en p
 
 | Protection | Détail |
 |------------|--------|
-| Monitoring | Ping de chaque agent toutes les 15s, alerte CRITICAL après 3 échecs consécutifs |
-| Rate limiting | 30 req/min par user/IP, configurable |
-| Prompt injection | Détecte jailbreak, commandes OS, SQL injection via regex |
-| Anti-replay | Chaque `request_id` traité une seule fois, TTL 5 min |
-| Blocage IP | Manuel via API ou automatique après N incidents |
-| Alertes Discord | Embed Discord coloré sur chaque événement CRITICAL et WARNING |
-| Export | Journal exportable en CSV ou JSON via `GET /events?format=csv` |
+| 🔍 Monitoring | Ping de chaque agent toutes les 15s, alerte CRITICAL après 3 échecs consécutifs |
+| 🚦 Rate limiting | 30 req/min par user/IP, configurable |
+| 💉 Prompt injection | Détecte jailbreak, commandes OS, SQL injection via regex |
+| 🔁 Anti-replay | Chaque `request_id` traité une seule fois, TTL 5 min |
+| 🚫 Blocage IP | Manuel via API ou automatique après N incidents |
+| 🔔 Alertes Discord | Embed coloré sur chaque événement CRITICAL et WARNING |
+| 📊 Export | Journal exportable CSV / JSON via `GET /events?format=csv` |
 
 ![Alerte Discord](docs/screenshots/AlertDiscord.png)
 
-### API CyberDefence (:8086)
+### API CyberDefence — port 8086
 
 ```bash
-GET  /health          # statut de l'agent
-GET  /status          # état de tous les agents surveillés
-GET  /metrics         # métriques (taux blocage, latences, événements)
-GET  /events          # journal — ?severity=CRITICAL&limit=20&format=csv
-POST /inspect         # valider une requête avant routing
-POST /block-ip        # bloquer une IP  {"ip": "1.2.3.4"}
-POST /unblock-ip      # débloquer une IP
+GET  /health       # statut de l'agent
+GET  /status       # état de tous les agents surveillés
+GET  /metrics      # métriques (taux blocage, latences, événements)
+GET  /events       # journal filtrable — ?severity=CRITICAL&limit=20&format=csv
+POST /inspect      # valider une requête avant routing
+POST /block-ip     # bloquer une IP  {"ip": "1.2.3.4"}
+POST /unblock-ip   # débloquer une IP
 ```
 
-### Configuration CyberDefence
+### Configuration
 
 ```yaml
 agents:
@@ -201,18 +232,17 @@ agents:
       max_req_per_min: 30      # rate limit par user/IP
       replay_ttl_sec: 300      # TTL anti-replay (5 min)
       auto_block: false        # blocage automatique après N incidents
-      auto_block_threshold: 5  # seuil incidents avant blocage auto
+      auto_block_threshold: 5  # seuil avant blocage auto
 ```
 
 ### Lancer CyberDefence
 
 ```bash
-# Le .env doit être chargé pour le webhook Discord
 set -a && source .env && set +a
 python -m agents.cyberdefence.agent
 
-# Alias pratique à ajouter dans .bashrc
-alias start-cyber='cd ~/local-agents && set -a && source .env && set +a && python -m agents.cyberdefence.agent'
+# Ou avec just
+just cyberdefence
 ```
 
 ---
@@ -223,17 +253,19 @@ Accessible sur `http://localhost:8081`.
 
 ![Paramètres](docs/screenshots/parametres.png)
 
-### Onglets
-
-- **Chat** — conversation avec n'importe quel agent, sélection du modèle par requête, indicateur de réflexion animé
-- **CyberDefence** — métriques temps réel, statut agents, timeline événements filtrables, export CSV
-- **Paramètres** — modèle par agent, gestion modèles Ollama (téléchargement / suppression), paramètres globaux
+| Onglet | Contenu |
+|--------|---------|
+| 💬 Chat | Conversation avec n'importe quel agent, sélection du modèle, indicateur de réflexion |
+| 🛡️ CyberDefence | Métriques temps réel, statut agents, timeline événements filtrables, export CSV |
+| ⚙️ Paramètres | Modèle par agent, gestion modèles Ollama (téléchargement / suppression) |
 
 ---
 
 ## Configuration
 
-Copier `.env.example` en `.env` :
+```bash
+cp .env.example .env
+```
 
 ```bash
 # Ollama
@@ -272,7 +304,7 @@ LOG_LEVEL=info   # debug | info | warn | error
 
 ## GPU
 
-### NVIDIA (CUDA)
+### 🟢 NVIDIA (CUDA)
 
 Ajouter dans `docker-compose.yml` sous le service `ollama` :
 
@@ -286,21 +318,19 @@ deploy:
           capabilities: [gpu]
 ```
 
-### AMD (ROCm)
+### 🔴 AMD (ROCm)
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
 ```
 
-### Apple Silicon
+### 🍎 Apple Silicon
 
 Ollama détecte automatiquement le GPU Metal. Aucune configuration requise.
 
 ---
 
 ## Docker
-
-### Services
 
 | Service | Port | Description |
 |---------|------|-------------|
@@ -309,15 +339,13 @@ Ollama détecte automatiquement le GPU Metal. Aucune configuration requise.
 | `agents` | — | Agents Python (coder, files, email, social) |
 | `cyberdefence` | 8086 | Agent sécurité |
 
-### Commandes
-
 ```bash
-docker compose up -d                                    # démarrer
-docker compose down                                     # arrêter
-docker compose logs -f orchestrator                     # logs
-docker compose exec ollama ollama list                  # modèles installés
-docker compose exec ollama ollama pull mistral:7b       # télécharger un modèle
-docker compose restart cyberdefence                     # redémarrer un service
+docker compose up -d                                  # démarrer
+docker compose down                                   # arrêter
+docker compose logs -f orchestrator                   # logs
+docker compose exec ollama ollama list                # modèles installés
+docker compose exec ollama ollama pull mistral:7b     # télécharger un modèle
+docker compose restart cyberdefence                   # redémarrer un service
 ```
 
 ---
@@ -346,9 +374,9 @@ agents:
 ### Tests
 
 ```bash
-just test
-pytest agents/ -v
-go test ./...
+just test          # tous les tests
+pytest agents/ -v  # tests Python
+go test ./...      # tests Go
 ```
 
 ### Logs structurés
@@ -356,7 +384,14 @@ go test ./...
 Tous les logs sont en JSON :
 
 ```json
-{"timestamp":"2026-03-14T08:00:00Z","level":"INFO","logger":"cyberdefence","message":"Route health trouvée","port":8086}
+{
+  "timestamp": "2026-03-14T08:00:00Z",
+  "level": "INFO",
+  "logger": "cyberdefence",
+  "message": "Agent healthy",
+  "agent_id": "coder",
+  "response_time_ms": 340
+}
 ```
 
 ---
@@ -364,16 +399,20 @@ Tous les logs sont en JSON :
 ## Comparaison
 
 | | Local Agents | AutoGen | LangGraph | n8n |
-|--|--|--|--|--|
-| 100% local | oui | partiel | partiel | partiel |
-| Orchestrateur Go | oui | non | non | non |
-| Bot Discord natif | oui | non | non | plugin |
-| Sécurité intégrée | oui | non | non | limité |
-| Sans cloud | oui | non | non | non |
-| GPU AMD/NVIDIA | oui | dépend | dépend | non |
+|--|:--:|:--:|:--:|:--:|
+| 100% local | ✅ | ⚠️ | ⚠️ | ⚠️ |
+| Orchestrateur Go | ✅ | ❌ | ❌ | ❌ |
+| Bot Discord natif | ✅ | ❌ | ❌ | 🔌 |
+| Sécurité intégrée | ✅ | ❌ | ❌ | ⚠️ |
+| Sans cloud | ✅ | ❌ | ❌ | ❌ |
+| GPU AMD / NVIDIA | ✅ | ⚠️ | ⚠️ | ❌ |
 
 ---
 
-## Licence
+<div align="center">
 
-MIT
+**⭐ Star ce repo si tu le trouves utile !**
+
+Made with ❤️ by [loic31000](https://github.com/loic31000)
+
+</div>
