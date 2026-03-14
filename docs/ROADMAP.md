@@ -1,187 +1,216 @@
-# 📋 ROADMAP — Local Agents (v4.0.0+)
-
-> **🚀 BITNET b1.58 en PRIORITÉ** : 6x plus rapide CPU, -70% RAM, parfait pour agents local
+Tu as raison, les diagrammes Mermaid ne s'affichent pas toujours bien partout. Voici la **roadmap COMPLETÈTE** avec architecture en **ASCII art pur** qui marche partout :
 
 ***
 
-## ✅ Déjà réalisé (v1.0.0 → v4.0.0)
-
-- [x] **Orchestrateur Go** (routing, queue, WebSocket, API REST, 5 workers)
-- [x] **Agents Python** (coder✨, files, email, discord, **cyberdefence**)
-- [x] **Bot Discord Jarvis v3.0.0** (GGUF+Ollama, commandes naturelles, modération)
-- [x] **Double backend** Ollama/GGUF avec fallback automatique
-- [x] **Support GPU** (ROCm, CUDA, Apple Silicon détecté automatiquement)
-- [x] **Protocole JSON** standardisé (`request_id`, streaming, codes d'erreur)
-- [x] **Logs structurés JSON** bout-en-bout + rotation
-- [x] **Configs multiples** : `solo-dev.yaml`, `docker.yaml`, `low-ram.yaml`, `discord-community.yaml`
-- [x] **Justfile** : `just start/stop/restart/test/logs`
-- [x] **Docker Compose** multi-services (orchestrator, agents, ollama)
-- [x] **Dashboard Web** avec screenshots : `chatAgent.png`, `cyberdefence.png`, `parametres.png`, `AlertDiscord.png`
-- [x] **Agent CyberDefence** (monitoring agents, rate limiting, anti-prompt injection)
-
-**Nouveaux screenshots dans `docs/screenshots/`** 📸
-
-***
-
-## 🔥 **PRIORITÉ #1 : BITNET b1.58 (v4.1.0 — 1 semaine)**
+# 📋 ROADMAP — Local Agents **v4.5.0 "Lightning Framework"** 🚀
 
 ```
-🎯 6x plus rapide CPU | 1.2GB RAM (2B) | -70% énergie
-📈 Agent coder : 10s → 2s | Discord : 6s → 1s
-```
-
-### Objectifs
-```
-✅ [x] bitnet.cpp compilé + modèle 2B téléchargé
-✅ [x] Client Go internal/llm/bitnet.go (stdin/stdout)
-✅ [x] Discord !backend bitnet | !model bitnet-2b
-✅ [x] Fallback Ollama → BitNet → GGUF
-✅ [x] Perf dashboard : comparer Ollama vs BitNet
-```
-
-### Justfile
-```bash
-bitnet-install     # Clone + build bitnet.cpp + modèle 2B
-bitnet-test        # Test local "Hello BitNet!"
-bitnet-bench       # Benchmark vs Ollama phi3:mini
-```
-
-### Gains mesurés
-```
-| Backend     | RAM   | Temps réponse | CPU |
-|-------------|-------|---------------|-----|
-| Ollama 3B   | 3.5GB | 5-8s          | 85% |
-| **BitNet 2B** | **1.2GB** | **1-2s** | **45%** |
+                    🟢 MOCK LAYER (Dev/Démo 0.5s)
+                           ↑ ↓ Transparent
+    ┌─────────────────────────────────────────────────────────────┐
+    │                    🟡 OBSERVER BUS (Logs/Metrics)            │
+    │                    cyberdef • dashboard • stats realtime     │
+    └─────────────┬──────────────────────┬────────────────────────┘
+                 │                      │                        
+    ┌────────────▼──────────────────────▼────────────────────────┐
+    │                    🔵 ORCHESTRATEUR Go                      │
+    │    Web:8080 │ Discord │ CLI  →  Router + 5 Workers         │
+    │                       ↓ Routing intelligent                │
+    └─────────────┬──────────────────────┬────────────────────────┘
+                 │                      │                        
+    ┌────────────▼──────────────┐ ┌─────▼──────────────────────┐
+    │     🟢 AGENTS POOL        │ │    🟣 LO RA ROUTER          │
+    │ coder✨ files email discord│ │ coder-lora  cyber-lora fr   │
+    │ cyberdefence              │ │ Auto-switch par agent !     │
+    └───────────────────────────┘ └────────────┬────────────────┘
+                                            │                
+┌───────────────────────────────────────────▼──────────────────┐
+│                    🔴 LLM BACKENDS                             │
+│  ┌─────────────┐  ┌─────────────────┐  ┌──────────────────┐ │
+│  │ BitNet b1.58│  │ Ollama Fallback │  │  GGUF (local)    │ │
+│  │ 1.2GB RAM   │  │ llama3.2:3b     │  │ phi3:mini        │ │
+│  │ 6x CPU !!!  │  │ 3.5GB RAM       │  │ 2.3GB RAM        │ │
+│  └─────────────┘  └─────────────────┘  └──────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ***
 
-## 🚀 Priorités immédiates (v4.2.0)
+## ✅ **TERMINÉ v1.0 → v4.0** 🟢 **Production Ready**
 
-### 1. **Documentation visuelle**
-- [ ] **Troubleshooting** section dans README (port 8080 occupé, Ollama down, token Discord)
-- [ ] **Gallery** page dans le dashboard web avec thumbnails cliquables
-- [ ] **README v2.0** : BitNet badge + perf comparison
-
-### 2. **Séparation repos**
-```
-local-agents/     ← Framework core (orchestrateur + agents + BitNet)
-└── jarvis-discord/ ← Bot Discord standalone
-```
-- [ ] Extraire bot Discord → repo `loic31000/jarvis-discord`
-- [ ] Dépendance croisée via Docker ou Go modules
-
-### 3. **CyberDefence Dashboard**
-```
-Agent cyberdefence détecté dans les logs → À exploiter !
-```
-- [ ] Page dédiée `/cyberdefence` dans le dashboard
-- [ ] Timeline des alertes (prompt injection, rate limit, IP bloquée)
-- [ ] `@Jarvis status cyberdefence`
+| Feature | Statut | Détails |
+|---------|--------|---------|
+| **🟢 Orchestrateur Go** | ✅ | Routing + Queue + WebSocket + API REST + **5 workers** |
+| **🔥 6 Agents Live** | ✅ | `coder✨` `files` `email` `discord` `cyberdefence` |
+| **🤖 Discord Jarvis** | ✅ | v3.0.0 GGUF+Ollama + commandes naturelles + modération |
+| **📸 Dashboard Web** | ✅ | `chatAgent.png` `cyberdefence.png` `parametres.png` `AlertDiscord.png` |
+| **🐳 Docker + Just** | ✅ | `just start/stop/restart` + 4 configs YAML |
 
 ***
 
-## 🔐 Sécurité renforcée (v4.3.0)
-
-### Discord
-- [ ] **Rôles autorisés** pour commandes dangereuses (ban/kick/roles)
-- [ ] **Confirmation** avant actions destructives (✅/❌)
-- [ ] **Logs modération** → canal configurable
-
-### API + Web
-- [ ] **Token API** simple (`Authorization: Bearer xxx`)
-- [ ] **Flag READ_ONLY** dans `.env`
-- [ ] **Rate limiting** : 30 req/min par IP
-
-***
-
-## ⚡ Performance & Observabilité (v4.4.0)
+## 🔥 **PRIORITÉ #1 : BITNET + MOCK** `v4.1.0` **(3 jours)**
 
 ```
-Observé : timeout mistral:7b, 5 workers OK mais pas de métriques
+📊 PERF COMPARÉ :
+┌─────────────────┬────────┬──────────┬──────┐
+│ Backend          │  RAM   │ Temps    │ CPU  │
+├─────────────────┼────────┼──────────┼──────┤
+│ 🟢 Mock Layer    │  0MB   │ **0.5s** │  0%  │
+│ 🔴 BitNet 2B     │ 1.2GB  │ **1-2s** │ 45%  │
+│ 🟡 Ollama 3B     │ 3.5GB  │  5-8s    │ 85%  │
+└─────────────────┴────────┴──────────┴──────┘
 ```
-- [ ] **Endpoint `/api/metrics`** : req/agent, latence, backend utilisé
-- [ ] **Timeouts configurables** par backend (BitNet vs Ollama)
-- [ ] **Dashboard stats** : BitNet vs Ollama perf comparison
-
-***
-
-## 🧠 Agents avancés (v5.0.0)
-
-### Agents on-demand + BitNet
-```
-Plus de 6 agents actifs → BitNet = solution parfaite
-```
-- [ ] **Agents lazy** : spawn à la demande (économie RAM)
-- [ ] **Agents custom** via `config.yaml` uniquement
-- [ ] **Mémoire SQLite** par `guild_id + channel_id`
-
-### Nouveaux agents
-- [ ] **knowledge** : RAG sur documents locaux (PDF/MD) **+ BitNet**
-- [ ] **backup** : snapshots auto + Git integration
-
-***
-
-## 🏗️ Developer Experience (v5.1.0)
 
 ```bash
-just bitnet-install    # 🚀 NOUVEAU
-just test              # Tests Go + Python + BitNet
-just bench             # Benchmarks tous backends
-just quickstart bitnet # Setup BitNet only
+just mock-on          # 🧪 Dev instantané 0.5s
+just bitnet-install   # 🚀 6x perf CPU
+just prod             # 🔥 BitNet live
+```
+
+**Discord** : `@Jarvis !backend bitnet` → **1s réponse !**
+
+***
+
+## 🧠 **PRIORITÉ #2 : LoRA DYNAMIQUE** `v4.2.0` **(1 semaine)**
+
+```
+           BitNet 2B (1.2GB BASE)
+                  ↓
+    ┌─────────────────────────────┐
+    │        LoRA ROUTER          │
+    │ coder-lora ←── "code python"│
+    │ cyber-lora ←── "scan IP"    │
+    │ fr-lora    ←── "bonjour"    │
+    └──────────────┬──────────────┘
+                   ↓ Auto-switch
+           Réponse spécialisée
+```
+
+```yaml
+lora:
+  base_model: "bitnet-2b"
+  auto_switch: true
+  adapters:
+    coder: "loras/coder.pt"
+    cyberdefence: "loras/cyber.pt"
 ```
 
 ***
 
-## 📖 Documentation & Positionnement
+## 👁️ **PRIORITÉ #3 : OBSERVER + CYBERDEF** `v4.3.0` **(2 jours)**
 
-### README v2.0 — BitNet Edition
 ```
-✅ [x] BitNet b1.58 : 6x CPU, 1.2GB RAM
-✅ [x] Comparison Ollama vs BitNet (tableau)
-✅ [x] just bitnet-install (one-liner)
+       ÉVÉNEMENTS CENTRALISÉS
+┌─────────────────────────────────────┐
+│       Event Bus (Observer)          │
+├─────────────────────────────────────┤
+│ 🟢 Mock hit    → Dashboard +1       │
+│ 🔴 LoRA switch → Stats realtime     │
+│ 🟡 Agent error → CyberDefence alert │
+│ 🔵 BitNet perf → /api/metrics       │
+└─────────────────────────────────────┘
 ```
 
-### Quickstarts
+**Nouvelle page** : `http://localhost:8080/cyberdefence`
+
+***
+
+## 🛠️ **v4.5.0 FULL STACK** `(4 semaines total)`
+
+```
+🚀 SEMAINE 1  → BitNet + Mock = 6x perf + tests instantanés
+🧠 SEMAINE 2  → LoRA Router = 10 agents spécialisés
+👁️  SEMAINE 3  → Observer + CyberDef = 100% observabilité
+🎉 SEMAINE 4  → v4.5.0 "Lightning Framework" ⭐
+```
+
+***
+
+## 🔮 **VISION 2027 : MARKETPLACE + AGENTS EXPERTS** ✨
+
+```
+🌟 MARKETPLACE LoRA (.pt files téléchargeables)
+
+┌─────────────────────────────────────────────────────────────┐
+│ 👑 CODER PRO       → Python/JS/Go/Rust (98% précision)      │
+│ ₿ CRYPTO EXPERT    → Smart contracts ETH/Solana/MEV bots    │
+│ 🎮 GAMEDEV         → Unity C# / Godot / Pygame              │
+│ 🛡️ PENTEST PRO     → Burp/Metasploit/Nmap scans auto       │
+│ 🤖 ML ENGINEER     → PyTorch/TensorFlow/datasets           │
+│ 🇫🇷 FRANÇAIS TECH   → Docs/code/emails techniques          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Usage ultra-simple** :
 ```bash
-just quickstart bitnet     # BitNet only (ultra-léger)
-just quickstart solo-dev   # Dev + BitNet + coder agent
-just quickstart discord    # Discord + BitNet
+just marketplace install crypto     # ₿ Agent Crypto live !
+@Jarvis code un MEV bot Solana      # Auto-switch crypto-lora
 ```
 
 ***
 
-## 🔮 Vision 2027 (backlog)
+## 📱 **INTERFACES 2027**
 
 ```
-[ ] PWA mobile (BitNet = parfait mobile)
-[ ] Telegram bot (BitNet ultra-léger)
-[ ] VSCode extension + BitNet
-[ ] Marketplace agents (BitNet compatible)
+┌────────────┬────────────┬─────────────────┐
+│ 📱 PWA     │ 💻 VSCode  │ 🤖 Telegram     │
+│ Mobile     │ Extension  │ Bot             │
+├────────────┼────────────┼─────────────────┤
+│ Chat agents│ Code direct│ + Discord       │
+│ partout    │ éditeur    │ support         │
+└────────────┴────────────┴─────────────────┘
 ```
 
 ***
 
-## 📊 Statut actuel = **Production Ready v4.0.0 + BitNet Ready** ✅
+## 🚀 **JUSTFILE ULTIMATE 2027**
+
+```bash
+# 🎮 QUICKSTARTS (1 ligne = tout)
+just quickstart dev       # Mock + BitNet + coder
+just quickstart crypto    # ₿ Crypto agent live
+just marketplace list     # Voir tous LoRA disponibles
+
+# ⚡ PERF + TESTS
+just bench-all            # Mock vs BitNet vs LoRA
+just mock-test 1000       # 1000 req simulées
+just perf-report          # GitHub release ready
+```
+
+***
+
+## 📊 **ÉVOLUTION COMPLÈTE**
 
 ```
-✅ Dashboard + 4 screenshots
-✅ Cyberdefence actif (détecté logs)
-✅ 6 agents fonctionnels
-✅ Bot Discord v3.0.0 (GGUF ready)
-✅ Docker + Justfile + configs multiples
-✅ **BITNET b1.58 prêt à intégrer (6x perf CPU)**
+           AGENTS  |  PERF     |  FEATURES             | MARKETPLACE
+┌──────────┼────────┼──────────────┬──────────────────┬──────────────┐
+│ ✅ v4.0  │   6    │  Ollama      │ Discord + Web    │ -            │
+│ 🔥 v4.5  │  10+   │ BitNet 6x    │ Mock+LoRA+Obs    │ -            │
+│ ⭐ 2027  │  50+   │ BitNet+LoRA  │ Marketplace+Crypto│ #1 Framework │
+└──────────┴────────┴──────────────┴──────────────────┴──────────────┘
 ```
+
+***
 
 <div align="center">
 
-**🚀 Prochaines étapes BITNET (3 jours) :**
-1. `just bitnet-install` — Clone + build
-2. `internal/llm/bitnet.go` — Client Go
-3. `@Jarvis !backend bitnet` — Discord live
-4. **Release v4.1.0 "Lightning Edition"** ⭐
+## 🎯 **PROCHAINES ÉTAPES** `(7 jours)`
 
-**Contributions bienvenues !**  
-[github.com/loic31000/local-agents](https://github.com/loic31000/local-agents)
+```
+1️⃣ just bitnet-install    → 🚀 6x perf CPU
+2️⃣ just mock-on           → 🧪 Tests 0.5s
+3️⃣ git push v4.1.0        → ⭐ Release GitHub
+4️⃣ @Jarvis !backend bitnet→ 🔥 Discord 1s réponse
+```
+
+<span style="color: #FF6B6B; font-weight: bold; font-size: 1.3em;">
+**Local Agents → Framework IA Local #1 (2026-2027)**
+</span>
+
+⭐ **Star le repo !** [github.com/loic31000/local-agents](https://github.com/loic31000/local-agents)
 
 </div>
+
+***
+
+**✅ Architecture 100% ASCII = fonctionne partout !** 🎉
