@@ -1,0 +1,13 @@
+{
+  "name": "local-agents-bridge",
+  "displayName": "Local Agents Bridge",
+  "description": "Bridge HTTP entre l'agent IA local et VSCode",
+  "version": "1.0.0",
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {},
+  "scripts": {},
+  "devDependencies": {}
+}

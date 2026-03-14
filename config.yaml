@@ -1,0 +1,93 @@
+# Configuration Local Agents - Backend llama.cpp (GPU local)
+# =============================================================
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  websocket_path: "/ws"
+
+# ── Backend LLM ──────────────────────────────────────────────
+# "llamacpp" = llama-server local (recommandé, GPU natif)
+# "ollama"   = Ollama (nécessite Ollama daemon)
+llm_backend: "llamacpp"
+
+llamacpp:
+  server_url: "http://localhost:8081"
+  default_model: "Mistral-7B-Instruct-v0.3-Q4_K_M"
+
+# Ollama (gardé pour pouvoir switcher)
+ollama:
+  base_url: "http://localhost:11434"
+  default_model: "llama3.2:3b"
+  models:
+    coding: "llama3.2:3b"
+    general: "llama3.2:3b"
+    fast: "qwen2:1.5b"
+
+# ── Agents ───────────────────────────────────────────────────
+agents:
+  coder:
+    enabled: true
+    prompt_file: "prompts/coder.md"
+    model: "coding"
+    tools:
+      - "vscode"
+      - "git"
+      - "terminal"
+      - "filesystem"
+    allowed_paths:
+      - "C:\\Users\\romano\\local-agents"
+      - "C:\\Users\\romano\\Documents"
+      - "C:\\Users\\romano\\Desktop"
+      - "C:\\Users\\romano\\Projects"
+      - "C:\\tmp"
+
+  files:
+    enabled: true
+    prompt_file: "prompts/files.md"
+    model: "general"
+    tools:
+      - "filesystem"
+    allowed_paths:
+      - "C:\\Users\\romano\\local-agents"
+      - "C:\\Users\\romano\\Documents"
+      - "C:\\Users\\romano\\Desktop"
+      - "C:\\Users\\romano\\Projects"
+      - "C:\\tmp"
+
+  email:
+    enabled: false
+    prompt_file: "prompts/email.md"
+    model: "general"
+
+  social:
+    enabled: false
+    prompt_file: "prompts/social.md"
+    model: "general"
+
+  discord:
+    enabled: false
+    prompt_file: "prompts/discord.md"
+    model: "general"
+
+# ── Storage ──────────────────────────────────────────────────
+storage:
+  type: "sqlite"
+  path: "data/agents.db"
+
+# ── Logging ──────────────────────────────────────────────────
+logging:
+  level: "info"
+  format: "json"
+  file: "logs/agents.log"
+
+# ── Queue ────────────────────────────────────────────────────
+queue:
+  type: "memory"
+  max_concurrent: 3
+  task_timeout: "5m"
+
+# ── VSCode Bridge ─────────────────────────────────────────────
+vscode_bridge:
+  url: "http://localhost:3333"
+  enabled: true
