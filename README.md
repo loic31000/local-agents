@@ -1,371 +1,379 @@
-# 🤖 Local Agents
+# Local Agents
 
-<div align="center">
+Framework d'agents IA **100 % local** — orchestrateur Go, agents Python, bot Discord Jarvis, sécurité intégrée.
+Aucun cloud requis. Fonctionne sur CPU, GPU AMD / NVIDIA / Apple Silicon.
 
-![Version](https://img.shields.io/badge/Version-3.0.0-blue?style=for-the-badge)
-![Local](https://img.shields.io/badge/100%25-Local-green?style=for-the-badge)
-![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python)
-![Ollama](https://img.shields.io/badge/Ollama-Powered-black?style=for-the-badge)
-![GGUF](https://img.shields.io/badge/GGUF-GPU%20Support-red?style=for-the-badge)
-![Discord](https://img.shields.io/badge/Discord-Bot-5865F2?style=for-the-badge&logo=discord)
-
-**Framework multi-agents IA 100% local avec Ollama + GGUF**
-
-*Zéro coût API • Données privées • Support GPU (AMD/NVIDIA) • Bot Discord intégré*
-
-[Installation](#-installation) •
-[Bot Discord](#-bot-discord-jarvis) •
-[GGUF & GPU](#-support-gguf--gpu) •
-[API](#-api-rest) •
-[Changelog](CHANGELOG.md)
-
-</div>
+![Dashboard Chat](docs/screenshots/chatAgent.png)
 
 ---
 
-## 🆕 Quoi de neuf en v3.0.0
+## Sommaire
 
-- 🎮 **Support GGUF** : Chargement direct des modèles avec accélération GPU
-- 🔀 **Double backend** : Choix entre Ollama (API) et GGUF (GPU direct)
-- ⚡ **Performance x10** : ~5-10s avec GPU vs ~90s en CPU
-- 📋 **Protocole standardisé** : Communication JSON orchestrateur ↔ agents
-- 📊 **Logs structurés** : Traçabilité complète avec `request_id`
-
----
-
-## 📸 Aperçu
-
-### Interface Web
-![Dashboard](docs/screenshots/dashboard.png)
-
-### Bot Discord
-![Discord Bot](docs/screenshots/discord-bot.png)
+- [Fonctionnalités](#fonctionnalités)
+- [Démarrage rapide](#démarrage-rapide)
+- [Architecture](#architecture)
+- [Agents](#agents)
+- [CyberDefence](#cyberdefence)
+- [Dashboard Web](#dashboard-web)
+- [Configuration](#configuration)
+- [Profils prédéfinis](#profils-prédéfinis)
+- [GPU](#gpu)
+- [Docker](#docker)
+- [Développement](#développement)
 
 ---
 
-## ✨ Fonctionnalités
+## Fonctionnalités
 
-| Fonctionnalité | Description |
-|----------------|-------------|
-| 🏠 **100% Local** | Tout tourne sur ta machine |
-| 🎮 **Support GPU** | AMD (ROCm), NVIDIA (CUDA), Apple Silicon |
-| 🔀 **Double Backend** | Ollama (API) ou GGUF (GPU direct) |
-| 🤖 **Bot Discord** | Comprend le français naturel avec IA |
-| 🎭 **Modes adaptatifs** | Discussion, Code, Modération |
-| 🧠 **Mémoire contextuelle** | Se souvient des 10 derniers messages |
-| 💻 **Génération de code** | Demande du code dans n'importe quel langage |
-| 🔧 **Extensible** | Ajoute facilement tes propres agents |
+| Catégorie | Détail |
+|-----------|--------|
+| Orchestration | Routing intelligent, queue de tâches, workers concurrents, WebSocket temps réel |
+| Agents | Coder, Files, Email, Social, Discord — extensibles sans modifier le code Go |
+| LLM | Double backend Ollama / GGUF, fallback automatique, support multi-GPU |
+| Sécurité | Rate limiting, détection prompt injection, anti-replay, blocage IP, alertes Discord |
+| Dashboard | Chat par agent, monitoring CyberDefence, gestion modèles Ollama, paramètres |
+| Bot Discord | Jarvis — commandes naturelles, modération, mémoire contextuelle, modes adaptatifs |
 
 ---
 
-## 🏗️ Architecture
+## Démarrage rapide
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Interface Web / Discord                  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Orchestrateur (Go)                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │   Router    │  │   Queue     │  │  WebSocket  │         │
-│  └─────────────┘  └─────────────┘  └─────────────┘         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-            ┌─────────────────┴─────────────────┐
-            ▼                                   ▼
-┌───────────────────────┐           ┌───────────────────────┐
-│     Ollama (API)      │           │    GGUF (GPU Direct)  │
-│   llama3.2 | phi3     │           │  mistral | codellama  │
-└───────────────────────┘           └───────────────────────┘
-                              │
-        ┌─────────┬───────────┼───────────┬─────────┐
-        ▼         ▼           ▼           ▼         ▼
-   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
-   │  Coder  │ │  Files  │ │  Email  │ │ Social  │ │ Discord │
-   └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘
-```
-
----
-
-## 🚀 Installation
-
-### Prérequis
-
-| Outil | Version | Installation |
-|-------|---------|--------------|
-| **Go** | 1.22+ | [go.dev/dl](https://go.dev/dl/) |
-| **Python** | 3.10+ | [python.org](https://python.org) |
-| **Ollama** | latest | [ollama.com](https://ollama.com) |
-| **just** | latest | `cargo install just` ou `brew install just` |
-
-### Installation rapide
+### Docker — Linux et Windows (recommandé)
 
 ```bash
-# Clone le repo
-git clone https://github.com/loic31000/local-agents.git
+# 1. Cloner le projet
+git clone https://github.com/ton-user/local-agents
 cd local-agents
 
-# Installer les dépendances
-just install
+# 2. Configurer l'environnement
+cp .env.example .env
+# Éditer .env : DISCORD_TOKEN, EMAIL_USER, CYBERDEFENCE_DISCORD_WEBHOOK…
 
-# Télécharger les modèles Ollama
-just models
+# 3. Lancer
+docker compose up -d
 
-# Compiler et démarrer
-just build
-just start
+# 4. Télécharger un modèle (première fois)
+docker compose exec ollama ollama pull llama3.2:3b
+
+# 5. Ouvrir le dashboard
+#    http://localhost:8081
 ```
 
-🎉 Ouvre http://localhost:8080
+> Windows : Docker Desktop suffit, aucun WSL requis.
+> GPU : voir la section [GPU](#gpu) pour l'accélération matérielle.
 
-### Configuration
+---
+
+### Local — Linux / macOS
 
 ```bash
-# Copier le template
-cp env.example .env
+# Prérequis : Go 1.22+, Python 3.10+, Ollama
+ollama pull llama3.2:3b
 
-# Éditer (ajouter token Discord, etc.)
-nano .env
+pip install -r requirements.txt
+go build -o bin/orchestrator ./cmd/orchestrator
+
+./bin/orchestrator &
+
+# Deuxième terminal — CyberDefence
+set -a && source .env && set +a
+python -m agents.cyberdefence.agent
 ```
 
 ---
 
-## 🎮 Support GGUF & GPU
-
-### Pourquoi GGUF ?
-
-| | Ollama | GGUF Direct |
-|--|--------|-------------|
-| **Installation** | Simple | Compilation |
-| **Performance** | Bon | **Optimal** |
-| **Contrôle GPU** | Auto | Manuel |
-| **Modèles custom** | Import | **Direct HuggingFace** |
-
-### Installation GGUF
+### Commandes Justfile
 
 ```bash
-# Auto-détecte ton GPU (AMD/NVIDIA/Apple)
-./scripts/install-gguf.sh
-
-# Télécharger un modèle
-python -m agents.common.gguf_loader download mistral-7b-q4
-
-# Tester
-python -m agents.common.gguf_loader run mistral-7b-instruct-v0.2.Q4_K_M
+just start       # démarre orchestrateur + agents
+just stop        # arrête tout proprement
+just status      # état des services
+just logs        # tail des logs
+just models      # télécharge les modèles configurés
+just test        # lance les tests
 ```
-
-### Modèles GGUF recommandés
-
-| Modèle | Taille | Usage |
-|--------|--------|-------|
-| `phi3-mini-q4` | 2.4 GB | Rapide, bon CPU |
-| `mistral-7b-q4` | 4.4 GB | Équilibré, bon français |
-| `llama3-8b-q4` | 4.9 GB | Très performant |
-| `deepseek-coder-6.7b-q4` | 4.0 GB | Code (excellent) |
-
-### Performance
-
-| Backend | CPU | GPU AMD | GPU NVIDIA |
-|---------|-----|---------|------------|
-| Ollama | ~90s | ~15s | ~10s |
-| **GGUF** | ~60s | **~8s** | **~5s** |
-
-📖 [Documentation GGUF complète](docs/GGUF.md)
 
 ---
 
-## 🤖 Bot Discord Jarvis
+## Architecture
 
-### Configuration Discord
+```
++--------------------------------------------------+
+|  Dashboard Web  :8081                            |
++--------------------+-----------------------------+
+                     | HTTP / WebSocket
++--------------------v-----------------------------+
+|  Orchestrateur Go                                |
+|  routing · queue · workers · API REST            |
++--+----------+----------+----------+--------------+
+   |          |          |          |
+ coder      files      email    discord
+   |
++--v-----------+   +----------------------+
+|  Ollama      |   |  CyberDefence :8086  |
+|  llm backend |   |  monitoring · sécu   |
++--------------+   +----------------------+
+```
 
-1. [Discord Developer Portal](https://discord.com/developers/applications) → Créer application
-2. Bot → Reset Token → Copier
-3. Activer les **3 Intents** (Presence, Server Members, Message Content)
-4. Inviter avec permissions Administrator
+Protocole : chaque requête orchestrateur vers agent suit le schéma JSON documenté dans `docs/PROTOCOL.md`.
+Agents externes : déclarés avec `type: external` et `port: XXXX` dans `config.yaml`, pingés directement par CyberDefence.
+
+---
+
+## Agents
+
+### Coder
+
+Génère, révise et débogue du code. Outillé : `filesystem`, `terminal`, `git`, `vscode`.
 
 ```bash
-# Ajouter le token
-echo 'DISCORD_BOT_TOKEN="ton_token"' >> .env
-
-# Redémarrer
-just restart
+curl -X POST http://localhost:8081/api/chat/coder \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Génère une fonction Python qui parse un CSV"}'
 ```
+
+### Files
+
+Lecture, écriture et recherche de fichiers locaux avec restrictions de chemins configurables.
+
+### Email
+
+Rédaction et envoi via SMTP. Configurer `EMAIL_SMTP_HOST`, `EMAIL_USER`, `EMAIL_PASS` dans `.env`.
+
+### Social
+
+Publication Twitter / LinkedIn. Désactivé par défaut (`enabled: false`).
+
+### Discord — Jarvis
+
+```
+@Jarvis aide-moi à déboguer ce code Python
+@Jarvis !mode code
+@Jarvis !backend ollama
+@Jarvis !models
+@Jarvis status agents
+@Jarvis alertes sécurité
+```
+
+Modes disponibles : `discussion`, `code`, `moderation`.
+
+---
+
+## CyberDefence
+
+Agent de surveillance sans LLM — logique déterministe uniquement. Tourne en parallèle de tous les autres agents.
+
+![CyberDefence Dashboard](docs/screenshots/cyberdefence.png)
+
+### Protections actives
+
+| Protection | Détail |
+|------------|--------|
+| Monitoring | Ping de chaque agent toutes les 15s, alerte CRITICAL après 3 échecs consécutifs |
+| Rate limiting | 30 req/min par user/IP, configurable |
+| Prompt injection | Détecte jailbreak, commandes OS, SQL injection via regex |
+| Anti-replay | Chaque `request_id` traité une seule fois, TTL 5 min |
+| Blocage IP | Manuel via API ou automatique après N incidents |
+| Alertes Discord | Embed Discord coloré sur chaque événement CRITICAL et WARNING |
+| Export | Journal exportable en CSV ou JSON via `GET /events?format=csv` |
+
+![Alerte Discord](docs/screenshots/AlertDiscord.png)
+
+### API CyberDefence (:8086)
+
+```bash
+GET  /health          # statut de l'agent
+GET  /status          # état de tous les agents surveillés
+GET  /metrics         # métriques (taux blocage, latences, événements)
+GET  /events          # journal — ?severity=CRITICAL&limit=20&format=csv
+POST /inspect         # valider une requête avant routing
+POST /block-ip        # bloquer une IP  {"ip": "1.2.3.4"}
+POST /unblock-ip      # débloquer une IP
+```
+
+### Configuration CyberDefence
+
+```yaml
+agents:
+  cyberdefence:
+    config:
+      check_interval: 15       # secondes entre chaque scan
+      max_req_per_min: 30      # rate limit par user/IP
+      replay_ttl_sec: 300      # TTL anti-replay (5 min)
+      auto_block: false        # blocage automatique après N incidents
+      auto_block_threshold: 5  # seuil incidents avant blocage auto
+```
+
+### Lancer CyberDefence
+
+```bash
+# Le .env doit être chargé pour le webhook Discord
+set -a && source .env && set +a
+python -m agents.cyberdefence.agent
+
+# Alias pratique à ajouter dans .bashrc
+alias start-cyber='cd ~/local-agents && set -a && source .env && set +a && python -m agents.cyberdefence.agent'
+```
+
+---
+
+## Dashboard Web
+
+Accessible sur `http://localhost:8081`.
+
+![Paramètres](docs/screenshots/parametres.png)
+
+### Onglets
+
+- **Chat** — conversation avec n'importe quel agent, sélection du modèle par requête, indicateur de réflexion animé
+- **CyberDefence** — métriques temps réel, statut agents, timeline événements filtrables, export CSV
+- **Paramètres** — modèle par agent, gestion modèles Ollama (téléchargement / suppression), paramètres globaux
+
+---
+
+## Configuration
+
+Copier `.env.example` en `.env` :
+
+```bash
+# Ollama
+OLLAMA_URL=http://localhost:11434
+
+# Discord (optionnel)
+DISCORD_TOKEN=your_token_here
+DISCORD_GUILD_ID=your_guild_id
+
+# Email (optionnel)
+EMAIL_SMTP_HOST=smtp.gmail.com
+EMAIL_SMTP_PORT=587
+EMAIL_USER=your@email.com
+EMAIL_PASS=your_app_password
+
+# CyberDefence — alertes Discord
+CYBERDEFENCE_DISCORD_WEBHOOK=https://discord.com/api/webhooks/...
+
+# Logs
+LOG_LEVEL=info   # debug | info | warn | error
+```
+
+---
+
+## Profils prédéfinis
+
+| Fichier | Usage |
+|---------|-------|
+| `config.yaml` | Configuration principale |
+| `config.solo-dev.yaml` | Dev solo — coder + files uniquement |
+| `config.low-ram.yaml` | RAM < 8 Go — modèles légers (phi3:mini, tinyllama) |
+| `config.discord-community.yaml` | Communauté Discord — Jarvis + modération |
+| `config.docker.yaml` | Utilisé automatiquement par Docker Compose |
+
+---
+
+## GPU
+
+### NVIDIA (CUDA)
+
+Ajouter dans `docker-compose.yml` sous le service `ollama` :
+
+```yaml
+deploy:
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+```
+
+### AMD (ROCm)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
+```
+
+### Apple Silicon
+
+Ollama détecte automatiquement le GPU Metal. Aucune configuration requise.
+
+---
+
+## Docker
+
+### Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| `ollama` | 11434 | Backend LLM |
+| `orchestrator` | 8081 | API Go + dashboard |
+| `agents` | — | Agents Python (coder, files, email, social) |
+| `cyberdefence` | 8086 | Agent sécurité |
 
 ### Commandes
 
-#### 🔧 Backend & Modèles
-```
-!backend              → Voir/changer (ollama/gguf)
-!backend gguf         → Passer en GPU direct 🎮
-!gpu                  → Infos GPU
-!models               → Liste tous les modèles
-!model mistral:7b     → Changer de modèle
-```
-
-#### 🎭 Modes
-```
-!mode                 → Voir les modes
-!mode discussion      → Conversation naturelle
-!mode code            → Génération de code
-!mode moderation      → Actions Discord
-```
-
-#### 💬 Chat IA
-```
-@Jarvis salut !
-@Jarvis c'est quoi Docker ?
-@Jarvis code fibonacci en python
-```
-
-#### 👑 Rôles & Modération
-```
-@Jarvis donne moi admin
-@Jarvis kick @user
-@Jarvis ban @user
-@Jarvis mute @user 30
-@Jarvis nettoie
-```
-
-#### 💾 Mémoire
-```
-!memory               → Voir la mémoire du canal
-!memory clear         → Effacer
+```bash
+docker compose up -d                                    # démarrer
+docker compose down                                     # arrêter
+docker compose logs -f orchestrator                     # logs
+docker compose exec ollama ollama list                  # modèles installés
+docker compose exec ollama ollama pull mistral:7b       # télécharger un modèle
+docker compose restart cyberdefence                     # redémarrer un service
 ```
 
 ---
 
-## 🌐 Interface Web
+## Développement
 
-Accès : **http://localhost:8080**
+### Ajouter un agent Python
 
-- 💬 Chat avec les agents
-- 🔄 Changer de modèle
-- 📊 Statistiques
-- ⚙️ Configuration
+1. Créer `agents/mon_agent/agent.py` avec les endpoints `/health` et `/chat`
+2. Déclarer dans `config.yaml` :
 
----
+```yaml
+agents:
+  mon_agent:
+    enabled: true
+    name: "Mon Agent"
+    description: "Description courte"
+    port: 8090
+    type: "external"
+    endpoint: "http://localhost:8090"
+    model: "general"
+```
 
-## 🔌 API REST
+3. L'orchestrateur proxifie automatiquement `/api/agents/mon_agent/health` vers le port déclaré.
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `GET` | `/api/health` | Statut du système |
-| `GET` | `/api/agents` | Liste des agents |
-| `POST` | `/api/chat/{agent}` | Envoyer un message |
-| `GET` | `/api/ollama/models` | Liste modèles |
-| `POST` | `/api/ollama/pull` | Télécharger modèle |
-
-### Exemple
+### Tests
 
 ```bash
-curl -X POST http://localhost:8080/api/chat/coder \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Code hello world en Python"}'
+just test
+pytest agents/ -v
+go test ./...
+```
+
+### Logs structurés
+
+Tous les logs sont en JSON :
+
+```json
+{"timestamp":"2026-03-14T08:00:00Z","level":"INFO","logger":"cyberdefence","message":"Route health trouvée","port":8086}
 ```
 
 ---
 
-## 🛠️ Commandes
+## Comparaison
 
-```bash
-just install    # Installer dépendances
-just build      # Compiler
-just start      # Démarrer
-just stop       # Arrêter
-just restart    # Redémarrer
-just status     # Statut
-just logs       # Logs
-just models     # Télécharger modèles Ollama
-```
+| | Local Agents | AutoGen | LangGraph | n8n |
+|--|--|--|--|--|
+| 100% local | oui | partiel | partiel | partiel |
+| Orchestrateur Go | oui | non | non | non |
+| Bot Discord natif | oui | non | non | plugin |
+| Sécurité intégrée | oui | non | non | limité |
+| Sans cloud | oui | non | non | non |
+| GPU AMD/NVIDIA | oui | dépend | dépend | non |
 
 ---
 
-## 📁 Structure du projet
+## Licence
 
-```
-local-agents/
-├── cmd/orchestrator/       # Serveur Go
-├── internal/
-│   ├── agent/              # Logique agents
-│   ├── llm/                # Client Ollama
-│   ├── logging/            # Logs structurés Go
-│   └── tools/              # Outils (git, fs, terminal)
-├── agents/
-│   ├── discord/bot.py      # Bot Discord v3
-│   └── common/             # Modules partagés
-│       ├── logger.py       # Logs structurés
-│       ├── protocol.py     # Protocole JSON
-│       ├── gguf_loader.py  # Loader GGUF
-│       └── llm_client.py   # Client unifié
-├── web/static/             # Interface web
-├── scripts/
-│   ├── setup.sh            # Script principal
-│   └── install-gguf.sh     # Installation GGUF
-├── docs/
-│   ├── PROTOCOL.md         # Protocole d'échange
-│   └── GGUF.md             # Documentation GGUF
-├── config.yaml             # Configuration
-├── CHANGELOG.md            # Historique des versions
-└── README.md
-```
-
----
-
-## 🔧 Troubleshooting
-
-### Bot Discord ne répond pas aux mentions
-- Vérifie que tu mentionnes le **BOT** (icône APP) pas le rôle
-- Active **Message Content Intent** dans le portail Discord
-
-### GGUF non disponible
-```bash
-./scripts/install-gguf.sh
-python -m agents.common.gguf_loader download mistral-7b-q4
-```
-
-### GPU non détecté
-```bash
-# NVIDIA
-nvidia-smi
-
-# AMD
-rocm-smi
-
-# Réinstaller llama-cpp-python avec le bon backend
-./scripts/install-gguf.sh
-```
-
-### Port 8080 occupé
-```bash
-sudo kill -9 $(sudo lsof -t -i:8080)
-just restart
-```
-
----
-
-## 🤝 Contribuer
-
-```bash
-git checkout -b feature/ma-feature
-git commit -m "feat: ajoute ma feature"
-git push origin feature/ma-feature
-```
-
----
-
-## 📜 Licence
-
-MIT - Fais ce que tu veux !
-
----
-
-<div align="center">
-
-**⭐ Star ce repo si tu le trouves utile !**
-
-Made with ❤️ by [loic31000](https://github.com/loic31000)
-
-</div>
+MIT

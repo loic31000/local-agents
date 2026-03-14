@@ -1,18 +1,22 @@
-# Dockerfile for Local Agents (Python)
-FROM python:3.10-slim
+# ── Local Agents — Python agents ──────────────────────────────────────────────
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy requirements
+# Dépendances système minimales
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+  && rm -rf /var/lib/apt/lists/*
+
+# Dépendances Python (cache layer séparé)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy agents
+# Code source agents
 COPY agents ./agents
-COPY scripts/start_agents.sh ./scripts/
+COPY scripts ./scripts
 
-# Make script executable
-RUN chmod +x scripts/start_agents.sh
+RUN chmod +x scripts/*.sh 2>/dev/null || true
 
-# Run agents
+# Par défaut : lancer tous les agents
 CMD ["./scripts/start_agents.sh"]

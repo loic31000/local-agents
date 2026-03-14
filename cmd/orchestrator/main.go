@@ -35,7 +35,7 @@ type Config struct {
 		DefaultModel string            `yaml:"default_model"`
 		Models       map[string]string `yaml:"models"`
 	} `yaml:"ollama"`
-	Agents map[string]AgentConfig `yaml:"agents"`
+	Agents  map[string]AgentConfig `yaml:"agents"`
 	Storage struct {
 		Type string `yaml:"type"`
 		Path string `yaml:"path"`
@@ -59,6 +59,9 @@ type AgentConfig struct {
 	Model        string   `yaml:"model"`
 	Tools        []string `yaml:"tools"`
 	AllowedPaths []string `yaml:"allowed_paths,omitempty"`
+	Port         int      `yaml:"port"`
+	Endpoint     string   `yaml:"endpoint"`
+	Type         string   `yaml:"type"`
 }
 
 // Orchestrator gère tous les agents
@@ -72,13 +75,13 @@ type Orchestrator struct {
 	wsClients    map[*websocket.Conn]bool
 	wsClientsMu  sync.RWMutex
 	upgrader     websocket.Upgrader
+	startedAt    time.Time
 }
 
 // NewOrchestrator crée un nouvel orchestrateur
 func NewOrchestrator(config *Config) (*Orchestrator, error) {
 	ollamaClient := llm.NewOllamaClient(config.Ollama.BaseURL)
 
-	// Vérifier la connexion à Ollama
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := ollamaClient.Ping(ctx); err != nil {
@@ -93,12 +96,12 @@ func NewOrchestrator(config *Config) (*Orchestrator, error) {
 		taskQueue:    make(chan *agent.Task, 100),
 		results:      make(map[string]*agent.Result),
 		wsClients:    make(map[*websocket.Conn]bool),
+		startedAt:    time.Now(),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
 	}
 
-	// Initialiser les agents
 	if err := orch.initAgents(); err != nil {
 		return nil, err
 	}
@@ -106,7 +109,6 @@ func NewOrchestrator(config *Config) (*Orchestrator, error) {
 	return orch, nil
 }
 
-// initAgents initialise tous les agents configurés
 func (o *Orchestrator) initAgents() error {
 	for agentID, agentCfg := range o.config.Agents {
 		if !agentCfg.Enabled {
@@ -114,15 +116,19 @@ func (o *Orchestrator) initAgents() error {
 			continue
 		}
 
-		// Charger le prompt système
+		// Les agents externes (Python) ne sont pas instanciés ici
+		if agentCfg.Type == "external" {
+			log.Info().Str("agent", agentID).Str("endpoint", agentCfg.Endpoint).Msg("Agent externe enregistré")
+			continue
+		}
+
 		promptPath := agentCfg.PromptFile
 		promptContent, err := os.ReadFile(promptPath)
 		if err != nil {
-			log.Warn().Str("agent", agentID).Err(err).Msg("Impossible de charger le prompt, utilisation du prompt par défaut")
+			log.Warn().Str("agent", agentID).Err(err).Msg("Prompt introuvable, utilisation du défaut")
 			promptContent = []byte(fmt.Sprintf("Tu es un agent spécialisé: %s", agentID))
 		}
 
-		// Déterminer le modèle
 		model := o.config.Ollama.DefaultModel
 		if agentCfg.Model != "" {
 			if m, ok := o.config.Ollama.Models[agentCfg.Model]; ok {
@@ -130,7 +136,6 @@ func (o *Orchestrator) initAgents() error {
 			}
 		}
 
-		// Créer l'agent
 		info := agent.AgentInfo{
 			ID:           agentID,
 			Name:         agentID,
@@ -142,7 +147,6 @@ func (o *Orchestrator) initAgents() error {
 
 		baseAgent := agent.NewBaseAgent(info, string(promptContent), o.ollamaClient)
 
-		// Ajouter les outils
 		for _, toolName := range agentCfg.Tools {
 			var tool agent.Tool
 			switch toolName {
@@ -161,54 +165,56 @@ func (o *Orchestrator) initAgents() error {
 			}
 			if tool != nil {
 				baseAgent.AddTool(tool)
-				log.Debug().Str("agent", agentID).Str("tool", toolName).Msg("Outil ajouté")
 			}
 		}
 
 		o.agents[agentID] = baseAgent
-		log.Info().Str("agent", agentID).Str("model", model).Int("tools", len(agentCfg.Tools)).Msg("Agent initialisé")
+		log.Info().Str("agent", agentID).Str("model", model).Msg("Agent initialisé")
 	}
-
 	return nil
 }
 
-// Start démarre l'orchestrateur
+// jsonResponse écrit une réponse JSON avec le bon Content-Type
+func jsonResponse(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
 func (o *Orchestrator) Start(ctx context.Context) error {
-	// Démarrer les workers de traitement
 	for i := 0; i < o.config.Queue.MaxConcurrent; i++ {
 		go o.worker(ctx, i)
 	}
 
-	// Configurer le routeur HTTP
 	router := mux.NewRouter()
 
-	// API REST
+	// ── API REST ──────────────────────────────────────────────────────────
 	router.HandleFunc("/api/health", o.handleHealth).Methods("GET")
 	router.HandleFunc("/api/config", o.handleConfig).Methods("GET")
 	router.HandleFunc("/api/agents", o.handleListAgents).Methods("GET")
 	router.HandleFunc("/api/agents/{id}", o.handleGetAgent).Methods("GET")
+	router.HandleFunc("/api/agents/{id}/health", o.handleAgentHealth).Methods("GET") // ← NOUVEAU
 	router.HandleFunc("/api/tasks", o.handleCreateTask).Methods("POST")
 	router.HandleFunc("/api/tasks/{id}", o.handleGetTask).Methods("GET")
 	router.HandleFunc("/api/chat/{agent}", o.handleChat).Methods("POST")
 
-	// API Ollama (proxy)
+	// ── Proxy Ollama ──────────────────────────────────────────────────────
 	router.HandleFunc("/api/ollama/models", o.handleOllamaModels).Methods("GET")
 	router.HandleFunc("/api/ollama/pull", o.handleOllamaPull).Methods("POST")
 	router.HandleFunc("/api/ollama/delete", o.handleOllamaDelete).Methods("DELETE")
 
-	// WebSocket
+	// ── WebSocket ─────────────────────────────────────────────────────────
 	router.HandleFunc(o.config.Server.WebsocketPath, o.handleWebSocket)
 
-	// Fichiers statiques (UI web)
+	// ── UI Web ────────────────────────────────────────────────────────────
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("web/static")))
 
-	// Démarrer le serveur
 	addr := fmt.Sprintf("%s:%d", o.config.Server.Host, o.config.Server.Port)
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 5 * time.Minute, // Plus long pour les réponses LLM
+		WriteTimeout: 5 * time.Minute,
 	}
 
 	go func() {
@@ -218,7 +224,6 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 		}
 	}()
 
-	// Attendre le signal d'arrêt
 	<-ctx.Done()
 	log.Info().Msg("Arrêt en cours...")
 
@@ -227,88 +232,100 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	return server.Shutdown(shutdownCtx)
 }
 
-// worker traite les tâches de la queue
-func (o *Orchestrator) worker(ctx context.Context, id int) {
-	log.Debug().Int("worker", id).Msg("Worker démarré")
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case task := <-o.taskQueue:
-			o.processTask(ctx, task)
-		}
+// ── Handlers ──────────────────────────────────────────────────────────────────
+
+func (o *Orchestrator) handleHealth(w http.ResponseWriter, r *http.Request) {
+	uptime := int(time.Since(o.startedAt).Seconds())
+
+	// Statut Ollama
+	ollamaOK := true
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := o.ollamaClient.Ping(ctx); err != nil {
+		ollamaOK = false
 	}
+
+	status := "healthy"
+	if !ollamaOK {
+		status = "degraded"
+	}
+
+	jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"status":         status,
+		"agent_id":       "orchestrator",
+		"version":        "1.0.0",
+		"uptime_seconds": uptime,
+		"agents_count":   len(o.agents),
+		"ollama_ok":      ollamaOK,
+	})
 }
 
-// processTask traite une tâche
-func (o *Orchestrator) processTask(ctx context.Context, task *agent.Task) {
-	log.Info().Str("task", task.ID).Str("agent", task.AgentID).Msg("Traitement de la tâche")
+// handleAgentHealth — ping l'agent Python sur son port et proxifie la réponse
+func (o *Orchestrator) handleAgentHealth(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
 
-	agentInstance, ok := o.agents[task.AgentID]
+	// Chercher le port dans la config
+	agentCfg, ok := o.config.Agents[id]
 	if !ok {
-		result := &agent.Result{
-			TaskID:      task.ID,
-			AgentID:     task.AgentID,
-			Success:     false,
-			Error:       fmt.Sprintf("agent %s non trouvé", task.AgentID),
-			CompletedAt: time.Now(),
-		}
-		o.saveResult(result)
+		jsonResponse(w, http.StatusNotFound, map[string]string{
+			"error": fmt.Sprintf("agent '%s' non trouvé dans la config", id),
+		})
 		return
 	}
 
-	result, err := agentInstance.Execute(ctx, task)
+	// Construire l'URL du health check de l'agent
+	var healthURL string
+	if agentCfg.Port > 0 {
+		healthURL = fmt.Sprintf("http://localhost:%d/health", agentCfg.Port)
+	} else if agentCfg.Endpoint != "" && agentCfg.Type == "external" {
+		healthURL = agentCfg.Endpoint + "/health"
+	} else {
+		// Agent Go interne — vérifier dans la map
+		if a, exists := o.agents[id]; exists {
+			info := a.Info()
+			jsonResponse(w, http.StatusOK, map[string]interface{}{
+				"status":   "healthy",
+				"agent_id": id,
+				"version":  "1.0.0",
+				"enabled":  info.Enabled,
+			})
+		} else {
+			jsonResponse(w, http.StatusNotFound, map[string]string{
+				"error": fmt.Sprintf("agent '%s' non démarré", id),
+			})
+		}
+		return
+	}
+
+	// Ping l'agent externe
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(healthURL)
 	if err != nil {
-		log.Error().Err(err).Str("task", task.ID).Msg("Erreur d'exécution")
+		jsonResponse(w, http.StatusServiceUnavailable, map[string]interface{}{
+			"status":   "unreachable",
+			"agent_id": id,
+			"error":    err.Error(),
+		})
+		return
 	}
+	defer resp.Body.Close()
 
-	o.saveResult(result)
-	o.broadcastResult(result)
-}
-
-// saveResult sauvegarde un résultat
-func (o *Orchestrator) saveResult(result *agent.Result) {
-	o.resultsMu.Lock()
-	o.results[result.TaskID] = result
-	o.resultsMu.Unlock()
-}
-
-// broadcastResult envoie le résultat à tous les clients WebSocket
-func (o *Orchestrator) broadcastResult(result *agent.Result) {
-	o.wsClientsMu.RLock()
-	defer o.wsClientsMu.RUnlock()
-
-	msg, _ := json.Marshal(map[string]interface{}{
-		"type":   "result",
-		"result": result,
-	})
-
-	for client := range o.wsClients {
-		client.WriteMessage(websocket.TextMessage, msg)
-	}
-}
-
-// Handlers HTTP
-
-func (o *Orchestrator) handleHealth(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":  "ok",
-		"agents":  len(o.agents),
-		"version": "0.1.0",
-	})
+	// Proxifier la réponse
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }
 
 func (o *Orchestrator) handleConfig(w http.ResponseWriter, r *http.Request) {
-	// Return configuration without secrets
-	config := map[string]interface{}{
-		"server": o.config.Server,
-		"ollama": o.config.Ollama,
-		"agents": o.config.Agents,
+	jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"server":  o.config.Server,
+		"ollama":  o.config.Ollama,
+		"agents":  o.config.Agents,
 		"storage": o.config.Storage,
 		"logging": o.config.Logging,
-		"queue": o.config.Queue,
-	}
-	json.NewEncoder(w).Encode(config)
+		"queue":   o.config.Queue,
+	})
 }
 
 func (o *Orchestrator) handleListAgents(w http.ResponseWriter, r *http.Request) {
@@ -316,34 +333,29 @@ func (o *Orchestrator) handleListAgents(w http.ResponseWriter, r *http.Request) 
 	for _, a := range o.agents {
 		agents = append(agents, a.Info())
 	}
-	json.NewEncoder(w).Encode(agents)
+	jsonResponse(w, http.StatusOK, agents)
 }
 
 func (o *Orchestrator) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-
 	if a, ok := o.agents[id]; ok {
-		json.NewEncoder(w).Encode(a.Info())
+		jsonResponse(w, http.StatusOK, a.Info())
 	} else {
-		http.Error(w, "Agent non trouvé", http.StatusNotFound)
+		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "agent non trouvé"})
 	}
 }
 
 func (o *Orchestrator) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	var task agent.Task
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-
 	task.ID = fmt.Sprintf("task-%d", time.Now().UnixNano())
 	task.CreatedAt = time.Now()
-
 	o.taskQueue <- &task
-
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
+	jsonResponse(w, http.StatusAccepted, map[string]string{
 		"task_id": task.ID,
 		"status":  "queued",
 	})
@@ -352,18 +364,13 @@ func (o *Orchestrator) handleCreateTask(w http.ResponseWriter, r *http.Request) 
 func (o *Orchestrator) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-
 	o.resultsMu.RLock()
 	result, ok := o.results[id]
 	o.resultsMu.RUnlock()
-
 	if ok {
-		json.NewEncoder(w).Encode(result)
+		jsonResponse(w, http.StatusOK, result)
 	} else {
-		json.NewEncoder(w).Encode(map[string]string{
-			"task_id": id,
-			"status":  "pending",
-		})
+		jsonResponse(w, http.StatusOK, map[string]string{"task_id": id, "status": "pending"})
 	}
 }
 
@@ -376,7 +383,29 @@ func (o *Orchestrator) handleChat(w http.ResponseWriter, r *http.Request) {
 		Model   string `json:"model,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Proxy vers agent externe si configuré
+	agentCfg, cfgOK := o.config.Agents[agentID]
+	if cfgOK && agentCfg.Type == "external" && agentCfg.Port > 0 {
+		chatURL := fmt.Sprintf("http://localhost:%d/chat", agentCfg.Port)
+		body, _ := json.Marshal(req)
+		resp, err := http.Post(chatURL, "application/json", bytes.NewReader(body))
+		if err != nil {
+			jsonResponse(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		io.Copy(w, resp.Body)
+		return
+	}
+
+	agentInstance, ok := o.agents[agentID]
+	if !ok {
+		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "agent non trouvé"})
 		return
 	}
 
@@ -389,70 +418,50 @@ func (o *Orchestrator) handleChat(w http.ResponseWriter, r *http.Request) {
 		Context:   map[string]interface{}{"model": req.Model},
 	}
 
-	agentInstance, ok := o.agents[agentID]
-	if !ok {
-		http.Error(w, "Agent non trouvé", http.StatusNotFound)
-		return
-	}
-
 	result, err := agentInstance.Execute(r.Context(), task)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-
-	json.NewEncoder(w).Encode(result)
+	jsonResponse(w, http.StatusOK, result)
 }
-
-// Ollama API Handlers
 
 func (o *Orchestrator) handleOllamaModels(w http.ResponseWriter, r *http.Request) {
 	resp, err := http.Get(o.config.Ollama.BaseURL + "/api/tags")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		jsonResponse(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
 	defer resp.Body.Close()
-
 	w.Header().Set("Content-Type", "application/json")
 	io.Copy(w, resp.Body)
 }
 
 func (o *Orchestrator) handleOllamaPull(w http.ResponseWriter, r *http.Request) {
-	// Proxy vers Ollama
-	resp, err := http.Post(
-		o.config.Ollama.BaseURL+"/api/pull",
-		"application/json",
-		r.Body,
-	)
+	resp, err := http.Post(o.config.Ollama.BaseURL+"/api/pull", "application/json", r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		jsonResponse(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
 	defer resp.Body.Close()
-
 	w.Header().Set("Content-Type", "application/json")
 	io.Copy(w, resp.Body)
 }
 
 func (o *Orchestrator) handleOllamaDelete(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
-	
 	req, err := http.NewRequest("DELETE", o.config.Ollama.BaseURL+"/api/delete", bytes.NewReader(body))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		jsonResponse(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
 	defer resp.Body.Close()
-
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
 }
@@ -477,13 +486,11 @@ func (o *Orchestrator) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		conn.Close()
 	}()
 
-	// Gérer les messages entrants
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			break
 		}
-
 		var request struct {
 			Type    string          `json:"type"`
 			Payload json.RawMessage `json:"payload"`
@@ -491,9 +498,7 @@ func (o *Orchestrator) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(msg, &request); err != nil {
 			continue
 		}
-
-		switch request.Type {
-		case "chat":
+		if request.Type == "chat" {
 			var chat struct {
 				Agent   string `json:"agent"`
 				Message string `json:"message"`
@@ -501,7 +506,6 @@ func (o *Orchestrator) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if err := json.Unmarshal(request.Payload, &chat); err != nil {
 				continue
 			}
-
 			go func() {
 				task := &agent.Task{
 					ID:        fmt.Sprintf("ws-%d", time.Now().UnixNano()),
@@ -510,7 +514,6 @@ func (o *Orchestrator) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					Input:     chat.Message,
 					CreatedAt: time.Now(),
 				}
-
 				if agentInstance, ok := o.agents[chat.Agent]; ok {
 					result, _ := agentInstance.Execute(context.Background(), task)
 					response, _ := json.Marshal(map[string]interface{}{
@@ -524,12 +527,58 @@ func (o *Orchestrator) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (o *Orchestrator) worker(ctx context.Context, id int) {
+	log.Debug().Int("worker", id).Msg("Worker démarré")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case task := <-o.taskQueue:
+			o.processTask(ctx, task)
+		}
+	}
+}
+
+func (o *Orchestrator) processTask(ctx context.Context, task *agent.Task) {
+	log.Info().Str("task", task.ID).Str("agent", task.AgentID).Msg("Traitement de la tâche")
+	agentInstance, ok := o.agents[task.AgentID]
+	if !ok {
+		o.saveResult(&agent.Result{
+			TaskID:      task.ID,
+			AgentID:     task.AgentID,
+			Success:     false,
+			Error:       fmt.Sprintf("agent %s non trouvé", task.AgentID),
+			CompletedAt: time.Now(),
+		})
+		return
+	}
+	result, err := agentInstance.Execute(ctx, task)
+	if err != nil {
+		log.Error().Err(err).Str("task", task.ID).Msg("Erreur d'exécution")
+	}
+	o.saveResult(result)
+	o.broadcastResult(result)
+}
+
+func (o *Orchestrator) saveResult(result *agent.Result) {
+	o.resultsMu.Lock()
+	o.results[result.TaskID] = result
+	o.resultsMu.Unlock()
+}
+
+func (o *Orchestrator) broadcastResult(result *agent.Result) {
+	o.wsClientsMu.RLock()
+	defer o.wsClientsMu.RUnlock()
+	msg, _ := json.Marshal(map[string]interface{}{"type": "result", "result": result})
+	for client := range o.wsClients {
+		client.WriteMessage(websocket.TextMessage, msg)
+	}
+}
+
 func main() {
-	// Configuration du logger
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	// Charger la configuration
 	configFile, err := os.ReadFile("config.yaml")
 	if err != nil {
 		log.Fatal().Err(err).Msg("Impossible de lire config.yaml")
@@ -540,26 +589,22 @@ func main() {
 		log.Fatal().Err(err).Msg("Erreur de parsing config.yaml")
 	}
 
-	// Créer l'orchestrateur
 	orch, err := NewOrchestrator(&config)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Erreur d'initialisation")
 	}
 
-	// Context avec gestion des signaux
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
 	go func() {
 		<-sigChan
 		log.Info().Msg("Signal reçu, arrêt...")
 		cancel()
 	}()
 
-	// Démarrer
 	if err := orch.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("Erreur de démarrage")
 	}

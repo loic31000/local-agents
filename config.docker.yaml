@@ -1,79 +1,163 @@
-# Configuration Local Agents
-# ===========================
+# =============================================================================
+# Local Agents — Configuration Docker
+# =============================================================================
+# Utilisé automatiquement par docker-compose.yml
+# Les hostnames correspondent aux noms de services Docker
+# =============================================================================
 
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 8081
   websocket_path: "/ws"
-
-ollama:
-  base_url: "http://ollama:11434"
-  default_model: "qwen2:1.5b"  # Modèle par défaut
-  models:
-    coding: "qwen2:1.5b"    # Pour le code
-    general: "qwen2:1.5b"   # Usage général
-    fast: "qwen2:1.5b"      # Réponses rapides
-
-agents:
-  coder:
+  cors:
     enabled: true
-    prompt_file: "prompts/coder.md"
-    model: "coding"
-    tools:
-      - "vscode"
-      - "git"
-      - "terminal"
-      - "filesystem"
-      - "discord" 
-  
-  files:
-    enabled: true
-    prompt_file: "prompts/files.md"
-    model: "general"
-    tools:
-      - "filesystem"
-      - "clipboard"
-    allowed_paths:
-      - "${HOME}/Documents"
-      - "${HOME}/Projects"
-      - "/tmp"
-  
-  email:
-    enabled: true
-    prompt_file: "prompts/email.md"
-    model: "general"
-    smtp:
-      host: "smtp.gmail.com"
-      port: 587
-      # Credentials via env: EMAIL_USER, EMAIL_PASS
-    imap:
-      host: "imap.gmail.com"
-      port: 993
-  
-  social:
-    enabled: true
-    prompt_file: "prompts/social.md"
-    model: "general"
-    platforms:
-      - "twitter"
-      - "linkedin"
-  
-  discord:
-    enabled: true
-    prompt_file: "prompts/discord.md"
-    model: "fast"
-    Token via env: DISCORD_BOT_TOKEN
-
-storage:
-  type: "sqlite"
-  path: "data/agents.db"
+    origins:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
 
 logging:
-  level: "info"  # debug, info, warn, error
+  level: "${LOG_LEVEL:-info}"
   format: "json"
   file: "logs/agents.log"
 
 queue:
-  type: "memory"  # memory ou redis
+  type: "memory"
   max_concurrent: 5
   task_timeout: "5m"
+  retry_attempts: 3
+  retry_delay: "1s"
+
+ollama:
+  base_url: "http://ollama:11434"
+  default_model: "llama3.2:3b"
+  models:
+    coding:  "llama3.2:3b"
+    general: "llama3.2:3b"
+    fast:    "phi3:mini"
+    french:  "mistral:7b"
+  defaults:
+    temperature: 0.7
+    max_tokens: 1024
+    timeout_ms: 60000
+
+agents:
+
+  cyberdefence:
+    enabled: true
+    name: "CyberDefence"
+    description: "Surveillance et sécurité du framework"
+    icon: "shield"
+    port: 8086
+    type: "external"
+    endpoint: "http://cyberdefence:8086"
+    model: ~
+    config:
+      check_interval: 15
+      max_req_per_min: 30
+      replay_ttl_sec: 300
+      auto_block: false
+      auto_block_threshold: 5
+    capabilities:
+      - monitoring
+      - rate_limiting
+      - prompt_injection_detection
+      - replay_protection
+      - ip_blocking
+
+  coder:
+    enabled: true
+    name: "Coder"
+    description: "Génération et analyse de code"
+    icon: "code-2"
+    model: "coding"
+    prompt_file: "prompts/coder.md"
+    tools:
+      - vscode
+      - git
+      - terminal
+      - filesystem
+    config:
+      temperature: 0.3
+      max_tokens: 2048
+      timeout_ms: 120000
+
+  files:
+    enabled: true
+    name: "Files"
+    description: "Gestion de fichiers et dossiers"
+    icon: "folder"
+    model: "general"
+    prompt_file: "prompts/files.md"
+    tools:
+      - filesystem
+    config:
+      temperature: 0.2
+      max_tokens: 1024
+      timeout_ms: 30000
+    security:
+      allowed_paths:
+        - "${HOME}/Documents"
+        - "${HOME}/Projects"
+      denied_paths:
+        - "${HOME}/.ssh"
+        - "${HOME}/.gnupg"
+        - "/etc"
+      max_file_size_mb: 10
+
+  email:
+    enabled: true
+    name: "Email"
+    description: "Envoi et gestion d'emails"
+    icon: "mail"
+    model: "general"
+    prompt_file: "prompts/email.md"
+    tools:
+      - smtp
+    config:
+      temperature: 0.5
+      max_tokens: 1024
+      timeout_ms: 30000
+    smtp:
+      host:     "${EMAIL_SMTP_HOST:-smtp.gmail.com}"
+      port:     "${EMAIL_SMTP_PORT:-587}"
+      user:     "${EMAIL_USER}"
+      password: "${EMAIL_PASS}"
+
+  social:
+    enabled: false
+    name: "Social"
+    description: "Publication sur réseaux sociaux"
+    icon: "share-2"
+    model: "general"
+    prompt_file: "prompts/social.md"
+    tools:
+      - twitter
+      - linkedin
+    config:
+      temperature: 0.7
+      max_tokens: 512
+      timeout_ms: 30000
+
+  discord:
+    enabled: true
+    name: "Discord"
+    description: "Bot Discord Jarvis"
+    icon: "message-circle"
+    model: "fast"
+    prompt_file: "prompts/discord.md"
+    type: "external"
+    endpoint: "python://agents/discord/bot.py"
+    config:
+      temperature: 0.6
+      max_tokens: 1024
+      timeout_ms: 90000
+    modes:
+      discussion:
+        model: "general"
+        temperature: 0.7
+      code:
+        model: "coding"
+        temperature: 0.3
+      moderation:
+        model: "fast"
+        temperature: 0.2
