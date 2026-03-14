@@ -1,5 +1,3 @@
-Tu as raison, les diagrammes Mermaid ne s'affichent pas toujours bien partout. Voici la **roadmap COMPLETÈTE** avec architecture en **ASCII art pur** qui marche partout :
-
 ***
 
 # 📋 ROADMAP — Local Agents **v4.5.0 "Lightning Framework"** 🚀
