@@ -1,160 +1,175 @@
-# 📋 ROADMAP — Local Agents
+# 📋 ROADMAP — Local Agents (v4.0.0+)
 
-> Feuille de route complète du projet, intégrant les retours d'usage réels (Discord, tests GPU, protocole).
+> Feuille de route mise à jour intégrant **screenshots**, **agent cyberdefence**, **configs multiples**, **Justfile**, **Docker** et retours d'usage réels.
 
----
+***
 
-## ✅ Déjà réalisé (v1.0.0 → v3.0.0)
+## ✅ Déjà réalisé (v1.0.0 → v4.0.0)
 
-- [x] Orchestrateur Go (routing, queue, WebSocket, API REST)
-- [x] Agents Python (coder, files, email, social, discord)
-- [x] Bot Discord Jarvis (commandes naturelles, modération, mémoire contextuelle)
-- [x] Double backend Ollama / GGUF avec fallback automatique
-- [x] Support GPU AMD (ROCm), NVIDIA (CUDA), Apple Silicon
-- [x] Protocole JSON standardisé orchestrateur ↔ agents (`request_id`, codes d'erreur, streaming)
-- [x] Logs structurés JSON bout-en-bout
-- [x] Modes adaptatifs Discord (discussion, code, modération)
-- [x] Commandes `!backend`, `!gpu`, `!models`, `!mode`, `!memory`, `!ping`
-- [x] Interface Web dashboard (http://localhost:8080)
+- [x] **Orchestrateur Go** (routing, queue, WebSocket, API REST, 5 workers)
+- [x] **Agents Python** (coder✨, files, email, discord, **cyberdefence**)
+- [x] **Bot Discord Jarvis v3.0.0** (GGUF+Ollama, commandes naturelles, modération)
+- [x] **Double backend** Ollama/GGUF avec fallback automatique
+- [x] **Support GPU** (ROCm, CUDA, Apple Silicon détecté automatiquement)
+- [x] **Protocole JSON** standardisé (`request_id`, streaming, codes d'erreur)
+- [x] **Logs structurés JSON** bout-en-bout + rotation
+- [x] **Configs multiples** : `solo-dev.yaml`, `docker.yaml`, `low-ram.yaml`, `discord-community.yaml`
+- [x] **Justfile** : `just start/stop/restart/test/logs`
+- [x] **Docker Compose** multi-services (orchestrator, agents, ollama)
+- [x] **Dashboard Web** avec screenshots : `chatAgent.png`, `cyberdefence.png`, `parametres.png`, `AlertDiscord.png`
+- [x] **Agent CyberDefence** (monitoring agents, rate limiting, anti-prompt injection)
 
----
+**Nouveaux screenshots dans `docs/screenshots/`** 📸
 
-## 🗂️ Séparation des repos (priorité immédiate)
+***
 
-> Basé sur les retours d'usage : le framework core et le bot Discord ont des cycles de vie différents.
+## 🚀 Priorités immédiates (v4.1.0)
 
-- [ ] Extraire le bot Discord dans un repo séparé **`jarvis-discord`**
-- [ ] `local-agents` devient le framework pur (orchestrateur + agents + API REST)
-- [ ] `jarvis-discord` consomme `local-agents` comme dépendance externe
-- [ ] Documenter l'intégration entre les deux repos
+### 1. **Documentation visuelle**
+```
+✅ [x] Screenshots déplacés → docs/screenshots/
+✅ [x] README.md mis à jour avec 4 nouvelles captures
+✅ [x] Liens relatifs vers docs/screenshots/ dans le markdown
+```
+- [ ] **Troubleshooting** section dans README (port 8080 occupé, Ollama down, token Discord)
+- [ ] **Gallery** page dans le dashboard web avec thumbnails cliquables
 
----
+### 2. **Séparation repos** (fortement recommandé)
+```
+local-agents/     ← Framework core (orchestrateur + agents)
+└── jarvis-discord/ ← Bot Discord standalone
+```
+- [ ] Extraire bot Discord → repo `loic31000/jarvis-discord`
+- [ ] `local-agents` → framework pur (API REST + agents)
+- [ ] Dépendance croisée via Docker ou Go modules
+- [ ] READMEs synchronisés + guides d'intégration
 
-## 🔐 Sécurité et permissions
+### 3. **CyberDefence Dashboard**
+```
+Agent cyberdefence détecté dans les logs → À exploiter !
+```
+- [ ] Page dédiée `/cyberdefence` dans le dashboard
+- [ ] Timeline des alertes (prompt injection, rate limit, IP bloquée)
+- [ ] Commande Discord `@Jarvis status cyberdefence`
+- [ ] Export logs sécurité → CSV/JSON
 
-> Observé en test : n'importe quel membre peut déclencher ban/kick/rôle admin.
+***
+
+## 🔐 Sécurité renforcée (v4.2.0)
 
 ### Discord
-- [ ] Système de rôles autorisés pour les commandes dangereuses (ban, kick, assign admin)
-- [ ] Confirmation avant actions destructives (réaction ✅/❌ ou délai d'annulation)
-- [ ] Ne plus demander la permission `Administrator` — utiliser des permissions granulaires
-- [ ] Logger les actions de modération dans un canal dédié optionnel (configurable dans `.env`)
+- [ ] **Rôles autorisés** pour commandes dangereuses (ban/kick/roles)
+- [ ] **Confirmation** avant actions destructives (✅/❌)
+- [ ] **Logs modération** → canal configurable
+- [ ] **Anti-spam** : cooldown 3s par commande
 
-### API REST
-- [ ] Token d'API simple (header `Authorization`) pour protéger les endpoints en production
-- [ ] Flag `READ_ONLY` dans `.env` pour désactiver les endpoints destructifs
-- [ ] Rate limiting basique sur `/api/chat/{agent}`
+### API + Web
+- [ ] **Token API** simple (`Authorization: Bearer xxx`)
+- [ ] **Flag READ_ONLY** dans `.env`
+- [ ] **Rate limiting** : 30 req/min par IP
 
----
+***
 
-## ⚡ Performance & modèles
+## ⚡ Performance & Observabilité (v4.3.0)
 
-> Observé en test : timeout sur `mistral:7b` pour du code Node.js, ~2min de réponse.
+```
+Observé : timeout mistral:7b, 5 workers OK mais pas de métriques
+```
+- [ ] **Endpoint `/api/metrics`** : req/agent, latence, erreurs
+- [ ] **Timeouts configurables** par modèle dans `config.yaml`
+- [ ] **Dashboard stats** : top agents, modèles, temps réponse
+- [ ] **Circuit breaker** : agent défaillant → `degraded` status
 
-- [ ] `num_ctx` configurable par agent (le coder a besoin de plus de contexte)
-- [ ] Cache du modèle GGUF en mémoire entre les requêtes (éviter le rechargement)
-- [ ] Timeout configurable par modèle dans `config.yaml` (mistral:7b nécessite plus de temps)
-- [ ] `repeat_penalty: 1.1` + `temperature: 0.3` pour l'agent coder, `0.7` pour le chat
-- [ ] Retry exponentiel automatique sur `ERR_TIMEOUT` et `ERR_OLLAMA_UNAVAILABLE`
+***
 
----
+## 🧠 Agents avancés (v5.0.0)
 
-## 🧠 Mémoire contextuelle
+### Agents on-demand
+```
+Plus de 6 agents actifs → architecture à optimiser
+```
+- [ ] **Agents lazy** : spawn à la demande (économie RAM)
+- [ ] **Agents custom** via `config.yaml` uniquement
+- [ ] **Mémoire SQLite** par `guild_id + channel_id`
 
-> Observé en test : mémoire vide après reconnexion, pas de persistance entre sessions.
+### Nouveaux agents
+- [ ] **knowledge** : RAG sur documents locaux (PDF/MD)
+- [ ] **backup** : snapshots auto + Git integration
+- [ ] **deploy** : one-click VPS/Raspberry Pi
 
-- [ ] Mémoire persistante via SQLite (par `guild_id` + `channel_id`)
-- [ ] Résumé automatique de l'historique quand il dépasse 10 messages (au lieu de tronquer)
-- [ ] Commande `!memory export` pour sauvegarder une conversation en fichier
-- [ ] TTL configurable sur la mémoire (ex: effacement auto après 24h d'inactivité)
+***
 
----
+## 🏗️ Developer Experience (v5.1.0)
 
-## 🏗️ Architecture agents / orchestrateur
+```
+Justfile existant → À compléter
+```
+```bash
+just test          # Tests Go + Python
+just lint          # gofmt + black + mypy
+just docs          # Génère README + screenshots
+just ci            # GitHub Actions local
+```
 
-- [ ] Agents **on-demand** (se lancent à la demande, ne tournent pas en permanence)
-- [ ] Circuit breaker : si un agent échoue 3x, le marquer `degraded` dans `/api/health`
-- [ ] Définition d'agents custom via fichier de config uniquement (sans toucher au code Go)
-- [ ] Streaming Discord : afficher la réponse progressivement avec `message.edit()`
-- [ ] Endpoint `/api/agents/register` documenté pour les agents tiers
+- [ ] **Tests unitaires** : Ollama client, router, agents
+- [ ] **CI GitHub Actions** : lint, build, tests
+- [ ] **Guide "Créer un agent"** → 5min chrono
+- [ ] **Plugin VSCode** pour interagir avec l'API
 
----
+***
 
-## 🌐 Interface Web
+## 📖 Documentation & Positionnement
 
-- [ ] Sélecteur de modèle par agent dans le dashboard
-- [ ] Historique minimal des conversations par agent
-- [ ] Affichage du temps de réponse et du modèle utilisé par requête
-- [ ] Édition des paramètres de base depuis l'UI (modèle par défaut, température, max tokens)
-- [ ] Indicateur de statut en temps réel (Ollama ✅/❌, agents Python ✅/❌, Discord ✅/❌)
+### README v2.0
+```
+✅ [x] Screenshots ajoutés
+✅ [x] Configs multiples documentées
+```
+- [ ] **Use cases** : Dev solo, Discord community, VPS
+- [ ] **Comparatif** : AutoGen, LangGraph, Phidata, n8n
+- [ ] **Recipes** : "Agent custom en 10min", "Deploy VPS"
 
----
+### Quickstarts
+```
+just quickstart solo-dev    # Setup dev solo
+just quickstart discord     # Serveur Discord
+just quickstart docker      # Docker one-shot
+```
 
-## 📊 Observabilité et monitoring
+***
 
-- [ ] Endpoint `/api/metrics` : nombre de requêtes par agent, latence moyenne, taux d'erreur
-- [ ] Page "Statistiques" dans le dashboard (usage par agent, par modèle, top commandes Discord)
-- [ ] Niveau de log configurable via `.env` : `DEBUG`, `INFO`, `ERROR`
-- [ ] Dashboard Grafana optionnel (export métriques Prometheus)
+## 🔮 Vision 2027 (backlog)
 
----
+```
+[ ] PWA mobile
+[ ] Telegram bot
+[ ] VSCode extension
+[ ] Grafana dashboard
+[ ] Plugin system (marketplace agents)
+```
 
-## 🧪 Qualité du code & DX
+***
 
-- [ ] Tests unitaires Go : client Ollama, router d'agents, handlers HTTP principaux
-- [ ] Tests de validation des schémas JSON du protocole
-- [ ] `docker-compose.yml` pour lancer tout l'environnement en une commande
-- [ ] CI GitHub Actions : lint Go + Python, build, tests
-- [ ] Guide "Créer un nouvel agent Python" (structure minimale, entrypoint, protocole)
-- [ ] Script `just test` dans le Justfile
+## 📊 Statut actuel = **Production Ready v4.0.0** ✅
 
----
-
-## 📖 Positionnement & documentation
-
-- [ ] Section **"Use cases"** dans le README :
-  - Dev solo (agent coder + files)
-  - Admin serveur Discord (modération + Jarvis)
-  - Setup offline pour petite équipe / VPS
-- [ ] **"Recipes"** pas à pas :
-  - Créer un agent "knowledge base locale"
-  - Brancher un SMTP réel pour l'agent email
-  - Déployer sur un mini-serveur (VPS / NUC / Raspberry Pi)
-- [ ] Tableau comparatif dans le README (AutoGen, LangGraph, Phidata, n8n) pour clarifier le positionnement 100% local + Go + Python + Discord
-- [ ] `config.yaml` entièrement commenté avec toutes les options disponibles
-
----
-
-## 🔮 Idées futures (backlog)
-
-- [ ] Agent **"knowledge base"** : indexation de documents locaux (PDF, Markdown) avec RAG
-- [ ] Support **Telegram** en parallèle de Discord
-- [ ] Interface mobile (PWA)
-- [ ] Plugin VSCode pour interagir avec l'orchestrateur directement depuis l'éditeur
-- [ ] Export des conversations en PDF/Markdown
-
----
-
-## 🛡️ Agent CyberDefence (v4.0.0)
-
-- [x] Monitoring actif de tous les agents (ping toutes les 15s)
-- [x] Rate limiting par user/IP (30 req/min configurable)
-- [x] Détection prompt injection (jailbreak, OS commands, SQL injection)
-- [x] Protection anti-replay via `request_id` (TTL 5min)
-- [x] Blocage IP manuel et automatique
-- [x] Journal d'événements structuré (INFO / WARNING / CRITICAL, rotation 1000)
-- [x] Endpoint `/inspect` intégré dans le pipeline de routing orchestrateur
-- [x] Commandes Discord `@Jarvis status agents` / `@Jarvis alertes`
-- [ ] Règles de détection custom via `config.yaml`
-- [ ] Alertes Discord automatiques sur événements CRITICAL
-- [ ] Dashboard dédié dans l'interface web (timeline des événements)
-- [ ] Export des logs sécurité en CSV/JSON
-- [ ] Blocage automatique après N échecs (fail2ban-like)
-- [ ] Scan des réponses agents (fuites de données sensibles)
+```
+✅ Dashboard + 4 screenshots
+✅ Cyberdefence actif (détecté logs)
+✅ 6 agents fonctionnels
+✅ Bot Discord v3.0.0 (GGUF ready)
+✅ Docker + Justfile + configs multiples
+✅ API REST + WebSocket OK
+```
 
 <div align="center">
 
-**Les contributions sont les bienvenues !**  
-Ouvre une issue ou une PR sur [github.com/loic31000/local-agents](https://github.com/loic31000/local-agents)
+**Prochaines étapes concrètes :**
+1. `docs/screenshots/` → Git + README
+2. Issue GitHub : "Séparer jarvis-discord"
+3. Page CyberDefence dans dashboard
+4. `just quickstart solo-dev`
+
+**Contributions bienvenues !** ⭐  
+[github.com/loic31000/local-agents](https://github.com/loic31000/local-agents)
 
 </div>
