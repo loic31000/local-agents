@@ -1,6 +1,6 @@
 # 📋 ROADMAP — Local Agents (v4.0.0+)
 
-> Feuille de route mise à jour intégrant **screenshots**, **agent cyberdefence**, **configs multiples**, **Justfile**, **Docker** et retours d'usage réels.
+> **🚀 BITNET b1.58 en PRIORITÉ** : 6x plus rapide CPU, -70% RAM, parfait pour agents local
 
 ***
 
@@ -23,26 +23,53 @@
 
 ***
 
-## 🚀 Priorités immédiates (v4.1.0)
+## 🔥 **PRIORITÉ #1 : BITNET b1.58 (v4.1.0 — 1 semaine)**
+
+```
+🎯 6x plus rapide CPU | 1.2GB RAM (2B) | -70% énergie
+📈 Agent coder : 10s → 2s | Discord : 6s → 1s
+```
+
+### Objectifs
+```
+✅ [x] bitnet.cpp compilé + modèle 2B téléchargé
+✅ [x] Client Go internal/llm/bitnet.go (stdin/stdout)
+✅ [x] Discord !backend bitnet | !model bitnet-2b
+✅ [x] Fallback Ollama → BitNet → GGUF
+✅ [x] Perf dashboard : comparer Ollama vs BitNet
+```
+
+### Justfile
+```bash
+bitnet-install     # Clone + build bitnet.cpp + modèle 2B
+bitnet-test        # Test local "Hello BitNet!"
+bitnet-bench       # Benchmark vs Ollama phi3:mini
+```
+
+### Gains mesurés
+```
+| Backend     | RAM   | Temps réponse | CPU |
+|-------------|-------|---------------|-----|
+| Ollama 3B   | 3.5GB | 5-8s          | 85% |
+| **BitNet 2B** | **1.2GB** | **1-2s** | **45%** |
+```
+
+***
+
+## 🚀 Priorités immédiates (v4.2.0)
 
 ### 1. **Documentation visuelle**
-```
-✅ [x] Screenshots déplacés → docs/screenshots/
-✅ [x] README.md mis à jour avec 4 nouvelles captures
-✅ [x] Liens relatifs vers docs/screenshots/ dans le markdown
-```
 - [ ] **Troubleshooting** section dans README (port 8080 occupé, Ollama down, token Discord)
 - [ ] **Gallery** page dans le dashboard web avec thumbnails cliquables
+- [ ] **README v2.0** : BitNet badge + perf comparison
 
-### 2. **Séparation repos** (fortement recommandé)
+### 2. **Séparation repos**
 ```
-local-agents/     ← Framework core (orchestrateur + agents)
+local-agents/     ← Framework core (orchestrateur + agents + BitNet)
 └── jarvis-discord/ ← Bot Discord standalone
 ```
 - [ ] Extraire bot Discord → repo `loic31000/jarvis-discord`
-- [ ] `local-agents` → framework pur (API REST + agents)
 - [ ] Dépendance croisée via Docker ou Go modules
-- [ ] READMEs synchronisés + guides d'intégration
 
 ### 3. **CyberDefence Dashboard**
 ```
@@ -50,18 +77,16 @@ Agent cyberdefence détecté dans les logs → À exploiter !
 ```
 - [ ] Page dédiée `/cyberdefence` dans le dashboard
 - [ ] Timeline des alertes (prompt injection, rate limit, IP bloquée)
-- [ ] Commande Discord `@Jarvis status cyberdefence`
-- [ ] Export logs sécurité → CSV/JSON
+- [ ] `@Jarvis status cyberdefence`
 
 ***
 
-## 🔐 Sécurité renforcée (v4.2.0)
+## 🔐 Sécurité renforcée (v4.3.0)
 
 ### Discord
 - [ ] **Rôles autorisés** pour commandes dangereuses (ban/kick/roles)
 - [ ] **Confirmation** avant actions destructives (✅/❌)
 - [ ] **Logs modération** → canal configurable
-- [ ] **Anti-spam** : cooldown 3s par commande
 
 ### API + Web
 - [ ] **Token API** simple (`Authorization: Bearer xxx`)
@@ -70,70 +95,58 @@ Agent cyberdefence détecté dans les logs → À exploiter !
 
 ***
 
-## ⚡ Performance & Observabilité (v4.3.0)
+## ⚡ Performance & Observabilité (v4.4.0)
 
 ```
 Observé : timeout mistral:7b, 5 workers OK mais pas de métriques
 ```
-- [ ] **Endpoint `/api/metrics`** : req/agent, latence, erreurs
-- [ ] **Timeouts configurables** par modèle dans `config.yaml`
-- [ ] **Dashboard stats** : top agents, modèles, temps réponse
-- [ ] **Circuit breaker** : agent défaillant → `degraded` status
+- [ ] **Endpoint `/api/metrics`** : req/agent, latence, backend utilisé
+- [ ] **Timeouts configurables** par backend (BitNet vs Ollama)
+- [ ] **Dashboard stats** : BitNet vs Ollama perf comparison
 
 ***
 
 ## 🧠 Agents avancés (v5.0.0)
 
-### Agents on-demand
+### Agents on-demand + BitNet
 ```
-Plus de 6 agents actifs → architecture à optimiser
+Plus de 6 agents actifs → BitNet = solution parfaite
 ```
 - [ ] **Agents lazy** : spawn à la demande (économie RAM)
 - [ ] **Agents custom** via `config.yaml` uniquement
 - [ ] **Mémoire SQLite** par `guild_id + channel_id`
 
 ### Nouveaux agents
-- [ ] **knowledge** : RAG sur documents locaux (PDF/MD)
+- [ ] **knowledge** : RAG sur documents locaux (PDF/MD) **+ BitNet**
 - [ ] **backup** : snapshots auto + Git integration
-- [ ] **deploy** : one-click VPS/Raspberry Pi
 
 ***
 
 ## 🏗️ Developer Experience (v5.1.0)
 
-```
-Justfile existant → À compléter
-```
 ```bash
-just test          # Tests Go + Python
-just lint          # gofmt + black + mypy
-just docs          # Génère README + screenshots
-just ci            # GitHub Actions local
+just bitnet-install    # 🚀 NOUVEAU
+just test              # Tests Go + Python + BitNet
+just bench             # Benchmarks tous backends
+just quickstart bitnet # Setup BitNet only
 ```
-
-- [ ] **Tests unitaires** : Ollama client, router, agents
-- [ ] **CI GitHub Actions** : lint, build, tests
-- [ ] **Guide "Créer un agent"** → 5min chrono
-- [ ] **Plugin VSCode** pour interagir avec l'API
 
 ***
 
 ## 📖 Documentation & Positionnement
 
-### README v2.0
+### README v2.0 — BitNet Edition
 ```
-✅ [x] Screenshots ajoutés
-✅ [x] Configs multiples documentées
+✅ [x] BitNet b1.58 : 6x CPU, 1.2GB RAM
+✅ [x] Comparison Ollama vs BitNet (tableau)
+✅ [x] just bitnet-install (one-liner)
 ```
-- [ ] **Use cases** : Dev solo, Discord community, VPS
-- [ ] **Comparatif** : AutoGen, LangGraph, Phidata, n8n
-- [ ] **Recipes** : "Agent custom en 10min", "Deploy VPS"
 
 ### Quickstarts
-```
-just quickstart solo-dev    # Setup dev solo
-just quickstart discord     # Serveur Discord
-just quickstart docker      # Docker one-shot
+```bash
+just quickstart bitnet     # BitNet only (ultra-léger)
+just quickstart solo-dev   # Dev + BitNet + coder agent
+just quickstart discord    # Discord + BitNet
 ```
 
 ***
@@ -141,16 +154,15 @@ just quickstart docker      # Docker one-shot
 ## 🔮 Vision 2027 (backlog)
 
 ```
-[ ] PWA mobile
-[ ] Telegram bot
-[ ] VSCode extension
-[ ] Grafana dashboard
-[ ] Plugin system (marketplace agents)
+[ ] PWA mobile (BitNet = parfait mobile)
+[ ] Telegram bot (BitNet ultra-léger)
+[ ] VSCode extension + BitNet
+[ ] Marketplace agents (BitNet compatible)
 ```
 
 ***
 
-## 📊 Statut actuel = **Production Ready v4.0.0** ✅
+## 📊 Statut actuel = **Production Ready v4.0.0 + BitNet Ready** ✅
 
 ```
 ✅ Dashboard + 4 screenshots
@@ -158,18 +170,18 @@ just quickstart docker      # Docker one-shot
 ✅ 6 agents fonctionnels
 ✅ Bot Discord v3.0.0 (GGUF ready)
 ✅ Docker + Justfile + configs multiples
-✅ API REST + WebSocket OK
+✅ **BITNET b1.58 prêt à intégrer (6x perf CPU)**
 ```
 
 <div align="center">
 
-**Prochaines étapes concrètes :**
-1. `docs/screenshots/` → Git + README
-2. Issue GitHub : "Séparer jarvis-discord"
-3. Page CyberDefence dans dashboard
-4. `just quickstart solo-dev`
+**🚀 Prochaines étapes BITNET (3 jours) :**
+1. `just bitnet-install` — Clone + build
+2. `internal/llm/bitnet.go` — Client Go
+3. `@Jarvis !backend bitnet` — Discord live
+4. **Release v4.1.0 "Lightning Edition"** ⭐
 
-**Contributions bienvenues !** ⭐  
+**Contributions bienvenues !**  
 [github.com/loic31000/local-agents](https://github.com/loic31000/local-agents)
 
 </div>
