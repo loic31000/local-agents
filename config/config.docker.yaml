@@ -33,7 +33,7 @@ ollama:
       resources:
         limits:
           memory: 4G
-  base_url: "http://ollama:11434"
+  base_url: "http://host.docker.internal:11434"
   default_model: "llama3.2:latest"   # ✅
   models:
     coding:  "qwen2.5-coder:1.5b"    # ✅ mieux pour le code

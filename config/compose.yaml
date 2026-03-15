@@ -1,18 +1,4 @@
 services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: local-agents-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
 
   orchestrator:
     build:
@@ -21,9 +7,6 @@ services:
     container_name: local-agents-orchestrator
     ports:
       - "8081:8081"
-    depends_on:
-      ollama:
-        condition: service_healthy
     volumes:
       - ../config/config.docker.yaml:/root/config.yaml:ro
       - ../web:/root/web:ro
@@ -32,7 +15,7 @@ services:
     env_file:
       - ../.env
     environment:
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://host.docker.internal:11434
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
@@ -47,14 +30,12 @@ services:
       dockerfile: config/Dockerfile.agents
     container_name: local-agents-python
     depends_on:
-      ollama:
-        condition: service_healthy
       orchestrator:
         condition: service_healthy
     env_file:
       - ../.env
     environment:
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://host.docker.internal:11434
       - ORCHESTRATOR_URL=http://orchestrator:8081
       - OLLAMA_MODEL=llama3.2:latest
     volumes:
@@ -87,7 +68,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  ollama_data:
-    driver: local
