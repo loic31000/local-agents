@@ -1,3 +1,34 @@
+```markdown
+# Changelog — Local Agents
+
+## [4.2.1] — 2026-03-15
+
+### Suppression BitNet + nettoyage Windows
+
+#### Supprimé
+
+- `agents/common/bitnet_provider.py` — intégration BitNet abandonnée
+- `agents/discord/backend_commands.py` — commandes `!backend bitnet` retirées
+- `scripts/bitnet-install.sh` — script d'installation BitNet retiré
+- Commandes `just bitnet-on`, `just prod` (variante BitNet) retirées du justfile
+
+#### Pourquoi
+
+BitNet b1.58 sur Windows est bloqué par l'absence du toolset `ClangCL` dans
+VS BuildTools 2022, un bug de linkage `lld-link / mainCRTStartup` avec clang 22,
+et un `setup_env.py` qui ne supporte pas les environnements Windows sans LLVM
+intégré à Visual Studio. Reporté à 2027 ou migration Linux/WSL2.
+
+#### Changé
+
+- `llm_client.py` — `LLMBackend.BITNET` supprimé, `kwargs` corrigé en paramètres nommés
+- `backend_router.go` — `BackendBitNet` et `BitNetClient` supprimés
+- `scripts/apply_llm_patch.py` — références BitNet retirées
+- ROADMAP mise à jour : BitNet → ⏸️ En pause (2027)
+- Backend par défaut : Ollama (`qwen2.5-coder:1.5b` recommandé)
+
+---
+
 ## [4.2.0] — 2026-03-15
 
 ### Scripts d'installation zero-to-hero + nettoyage
@@ -10,29 +41,26 @@
   - Détection GPU (NVIDIA CUDA / AMD ROCm) et configuration `.env` automatique
   - Prompt interactif pour `DISCORD_TOKEN` et `CYBERDEFENCE_DISCORD_WEBHOOK`
   - `docker compose up -d --build` + pull modèle `llama3.2:latest`
-  - Vérification finale des 3 services (orchestrateur, CyberDefence, Ollama)
-  - Ouverture automatique du dashboard
+  - Vérification finale des 3 services + ouverture automatique du dashboard
 
 - `scripts/install.ps1` — installation complète Windows en une commande
-  - Détection automatique winget ou Chocolatey (installation Chocolatey si absent)
+  - Détection automatique winget ou Chocolatey
   - Installation automatique : Git, Docker Desktop, Go, Python, Just, Ollama
-  - Attente intelligente de Docker Desktop avec retry (12 tentatives × 10s)
+  - Attente intelligente de Docker Desktop (12 tentatives × 10s)
   - Détection GPU via `Win32_VideoController` (NVIDIA / AMD)
-  - Prompt interactif tokens Discord
-  - `docker compose up -d --build` + pull modèle
   - Ouverture automatique `http://localhost:8081` en fin d'install
 
 - `.env.example` — restructuré et standardisé
-  - Clés renommées : `DISCORD_BOT_TOKEN` → `DISCORD_TOKEN` (cohérence)
-  - Ajout `GPU_ENABLED` et `GPU_TYPE` pour détection automatique GPU
-  - Valeurs vides par défaut (pas de placeholders trompeurs)
+  - `DISCORD_BOT_TOKEN` → `DISCORD_TOKEN` (cohérence)
+  - Ajout `GPU_ENABLED` et `GPU_TYPE`
+  - Valeurs vides par défaut
 
 #### Supprimé
 
-- `scripts/setup.sh` — doublon de `install.sh` + port 8080 hardcodé (cassé)
-- `scripts/start_agents.sh` — entrypoint Docker interne, inutile hors container
+- `scripts/setup.sh` — doublon + port 8080 hardcodé
+- `scripts/start_agents.sh` — entrypoint Docker interne inutile hors container
 
-#### Tests de sécurité validés (2026-03-15)
+#### Tests de sécurité validés
 
 | Test | Payload | Résultat |
 |------|---------|----------|
@@ -52,41 +80,31 @@ Alertes Discord confirmées en temps réel avec IP source, preview payload et ti
 - `docs/screenshots/AlertDiscord.png`
 - `docs/screenshots/multiple-attack.png`
 
-
-# Changelog — v4.x
+---
 
 ## [4.1.0] — 2026-03-14
 
-### BackendRouter Go — Mock Layer + BitNet
+### BackendRouter Go — Mock Layer
 
 #### Ajouté
 
 - `internal/llm/backend.go` — BackendRouter qui lit `.backend` ou `BACKEND` envvar
-  et route transparentement vers Mock, BitNet ou Ollama
+  et route transparentement vers Mock ou Ollama
 - `MockClient` Go intégré dans le router — réponses intelligentes par agent
   (coder, files, email, social, discord) avec délais réalistes simulés
-- `BitNetClient` Go — détection automatique du modèle GGUF BitNet
-  avec fallback automatique vers Ollama si non disponible
-- `internal/agent/base.go` — utilise `BackendRouter` au lieu d'`OllamaClient` direct,
-  passe `agent_id` comme modèle en mode Mock pour sélectionner les bonnes réponses
+- `internal/agent/base.go` — utilise `BackendRouter` au lieu d'`OllamaClient` direct
 - `internal/llm/ollama.go` — méthode `BaseURL()` exposée
 - `agents/common/mock_provider.py` — provider Python avec réponses hardcodées
   intelligentes par agent et délais simulés réalistes
-- `agents/common/bitnet_provider.py` — intégration `microsoft/bitnet-b1.58-2B-4T`
-  avec détection automatique du backend (bindings Python, CLI, llama.cpp)
-- `agents/discord/backend_commands.py` — commandes `!backend` Discord
-  (`!backend mock`, `!backend bitnet`, `!backend ollama`, `!backend bench`)
-- `scripts/bitnet-install.sh` — script d'installation BitNet avec détection GPU
-- `justfile` — commandes `mock-on`, `ollama-on`, `bitnet-on`, `prod`, `bench`,
+- `justfile` — commandes `mock-on`, `ollama-on`, `bench`,
   `patch-llm`, `security-metrics`, `security-export`, `unblock-ip`
 
 #### Performance mesurée
 
 | Backend | Temps | RAM | CPU |
 |---------|-------|-----|-----|
-| Mock | ~0.8s | 0 MB | 0% |
-| Ollama llama3.2:3b | ~42s | 3.5 GB | 85% |
-| BitNet 2B (cible) | ~1-2s | 1.2 GB | 45% |
+| 🟢 Mock | ~0.8s | 0 MB | 0% |
+| 🟡 Ollama llama3.2:3b | ~42s | 3.5 GB | 85% |
 
 Mock Layer = **52x plus rapide** qu'Ollama pour le développement.
 
@@ -95,8 +113,6 @@ Mock Layer = **52x plus rapide** qu'Ollama pour le développement.
 ```bash
 just mock-on    # activer Mock (dev instantané)
 just ollama-on  # activer Ollama (défaut)
-just bitnet-on  # activer BitNet (perf)
-just prod       # BitNet + restart
 just bench      # benchmark comparatif
 ```
 
@@ -106,28 +122,24 @@ just bench      # benchmark comparatif
 
 ### Agent CyberDefence complet
 
-#### Ajouté
+#### Ajouté — CyberDefence
 
 - `agents/cyberdefence/agent.py` — agent de surveillance sans LLM
 
 **Monitoring**
 - Ping de chaque agent et de l'orchestrateur toutes les 15s
-- Découverte automatique de la route `/health` parmi plusieurs candidats
-- Alerte CRITICAL uniquement après 3 échecs consécutifs (pas de bruit)
+- Alerte CRITICAL après 3 échecs consécutifs uniquement
 - Événements `AGENT_RECOVERED` / `ORCHESTRATOR_RECOVERED` au retour en ligne
 
 **Sécurité**
 - Rate limiting par user/IP — 30 req/min configurable
 - Détection prompt injection via regex (jailbreak, OS commands, SQL injection)
 - Protection anti-replay — chaque `request_id` traité une seule fois (TTL 5min)
-- Blocage IP manuel (`POST /block-ip`, `POST /unblock-ip`)
-- Blocage automatique après N incidents (`auto_block: true` + `auto_block_threshold`)
-- Middleware CORS pour accès depuis le dashboard
+- Blocage IP manuel + automatique après N incidents
 
 **Alertes Discord**
 - Embeds colorés via webhook sur CRITICAL et WARNING
-- Champs : sévérité, type, description, heure, métadonnées (IP, user_id, preview)
-- Chargement du webhook depuis `CYBERDEFENCE_DISCORD_WEBHOOK` dans `.env`
+- Champs : sévérité, type, description, heure, IP, user_id, preview payload
 
 **API**
 - `GET /health` — statut
@@ -136,9 +148,9 @@ just bench      # benchmark comparatif
 - `GET /events` — journal avec filtres `severity`, `limit`, `format=csv`
 - `POST /inspect` — validation avant routing
 - `POST /block-ip` / `POST /unblock-ip`
-- `POST /chat` — commandes langage naturel (status, alertes, métriques)
+- `POST /chat` — commandes langage naturel
 
-**Configuration** (lue depuis `config.yaml`)
+**Configuration** (`config.yaml`)
 ```yaml
 agents:
   cyberdefence:
@@ -153,7 +165,7 @@ agents:
 #### Ajouté — Orchestrateur Go
 
 - `Content-Type: application/json` sur toutes les réponses
-- Route `GET /api/agents/{id}/health` — proxifie vers le port de l'agent externe
+- Route `GET /api/agents/{id}/health`
 - Proxy `POST /api/chat/{agent}` vers agents externes
 - `AgentConfig` étendu avec `Port`, `Type`, `Endpoint`
 - Uptime et statut Ollama dans `GET /api/health`
@@ -165,23 +177,19 @@ agents:
 - Timeline événements filtrable, auto-rafraîchissement 10s
 - Export CSV depuis l'interface
 - Sélection modèle par agent (persisté localStorage)
-- Sélecteur modèle inline dans la barre de chat
-- Indicateur "Réflexion en cours..." animé (cycling label)
-- Avatar agent visible pendant génération
+- Indicateur "Réflexion en cours..." animé
 - Compteur caractères, animation fadeUp, gestion erreurs
 
 #### Ajouté — Infrastructure
 
 - `docker-compose.yml` avec healthchecks et `depends_on: condition: service_healthy`
 - Service `cyberdefence` dédié dans Docker Compose
-- `Dockerfile.orchestrator` et `Dockerfile.agents` mis à jour
 - `config.docker.yaml` avec hostnames Docker corrects
 
 #### Corrigé
 
 - `ORCHESTRATOR_DOWN` ne se déclenche plus au premier ping raté (3 échecs requis)
 - Dashboard connecté sur `window.location.host` (plus de port 8080 hardcodé)
-- `TaskResponse` construit avec `ResponseContent` et `Metrics` corrects
 - Port 8080 migré sur 8081 (conflit VirtualBox)
 
 ---
@@ -217,3 +225,19 @@ agents:
 - Agents Python : coder, files
 - Support Ollama
 - `common/protocol.py` et `common/logger.py`
+```
+
+***
+
+Prêt à commit :
+
+```powershell
+git add CHANGELOG.md ROADMAP.md agents/common/llm_client.py internal/llm/backend_router.go scripts/apply_llm_patch.py
+git commit -m "chore: suppression complète BitNet — v4.2.1
+
+- llm_client.py: LLMBackend.BITNET supprimé, kwargs corrigé
+- backend_router.go: BackendBitNet + BitNetClient supprimés
+- apply_llm_patch.py: refs BitNet retirées
+- CHANGELOG + ROADMAP mis à jour"
+git push
+```

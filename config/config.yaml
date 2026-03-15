@@ -180,7 +180,7 @@ agents:
     name: "Email"
     description: "Envoi et gestion d'emails"
     icon: "✉️"
-    model: "general"
+    model: "fast"      # smollm2:360m — rapide
     prompt_file: "prompts/email.md"
 
     tools:

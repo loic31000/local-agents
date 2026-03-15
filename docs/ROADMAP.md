@@ -1,222 +1,155 @@
-***
+Voici le fichier complet — copie-colle directement dans `ROADMAP.md` :
 
-# 📋 ROADMAP — Local Agents **v4.5.0 "Lightning Framework"** 🚀
+```markdown
+# 📋 ROADMAP — Local Agents v4.5.0 "Lightning Framework" 🚀
 
-```
-                    🟢 MOCK LAYER (Dev/Démo 0.5s)
-                           ↑ ↓ Transparent
-    ┌─────────────────────────────────────────────────────────────┐
-    │                    🟡 OBSERVER BUS (Logs/Metrics)            │
-    │                    cyberdef • dashboard • stats realtime     │
-    └─────────────┬──────────────────────┬────────────────────────┘
-                 │                      │                        
-    ┌────────────▼──────────────────────▼────────────────────────┐
-    │                    🔵 ORCHESTRATEUR Go                      │
-    │    Web:8080 │ Discord │ CLI  →  Router + 5 Workers         │
-    │                       ↓ Routing intelligent                │
-    └─────────────┬──────────────────────┬────────────────────────┘
-                 │                      │                        
-    ┌────────────▼──────────────┐ ┌─────▼──────────────────────┐
-    │     🟢 AGENTS POOL        │ │    🟣 LO RA ROUTER          │
-    │ coder✨ files email discord│ │ coder-lora  cyber-lora fr   │
-    │ cyberdefence              │ │ Auto-switch par agent !     │
-    └───────────────────────────┘ └────────────┬────────────────┘
-                                            │                
-┌───────────────────────────────────────────▼──────────────────┐
-│                    🔴 LLM BACKENDS                             │
-│  ┌─────────────┐  ┌─────────────────┐  ┌──────────────────┐ │
-│  │ BitNet b1.58│  │ Ollama Fallback │  │  GGUF (local)    │ │
-│  │ 1.2GB RAM   │  │ llama3.2:3b     │  │ phi3:mini        │ │
-│  │ 6x CPU !!!  │  │ 3.5GB RAM       │  │ 2.3GB RAM        │ │
-│  └─────────────┘  └─────────────────┘  └──────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
-```
+## Architecture
 
-***
+| Couche | Composants |
+|--------|------------|
+| 🟢 Mock Layer | Dev/Démo instantané — 0.5s |
+| 🟡 Observer Bus | Logs · Métriques · Stats realtime |
+| 🔵 Orchestrateur Go | Web:8081 · Discord · CLI · Router + 5 Workers |
+| 🟢 Agents Pool | `coder` `files` `email` `discord` `cyberdefence` |
+| 🟣 LoRA Router | coder-lora · cyber-lora · fr-lora · auto-switch |
+| 🔴 LLM Backends | Ollama (défaut) · GGUF · ⏸️ BitNet (2027) |
 
-## ✅ **TERMINÉ v1.0 → v4.2** 🟢 **Production Ready**
+---
+
+## ✅ Terminé — v1.0 → v4.2
 
 | Feature | Statut | Détails |
 |---------|--------|---------|
-| **🟢 Orchestrateur Go** | ✅ | Routing + Queue + WebSocket + API REST + **5 workers** |
-| **🔥 6 Agents Live** | ✅ | `coder` `files` `email` `discord` `cyberdefence` |
-| **🤖 Discord Jarvis** | ✅ | v3.0.0 GGUF+Ollama + commandes naturelles + modération |
-| **📸 Dashboard Web** | ✅ | Chat + CyberDefence + Paramètres + modèles Ollama |
-| **🐳 Docker + Just** | ✅ | `just start/stop/restart` + 4 configs YAML |
-| **🛡️ CyberDefence v1.1.0** | ✅ | Prompt injection + SQL + anti-replay + alertes Discord |
-| **🔐 Tests sécurité validés** | ✅ | 5/5 tests passés — CRITICAL/WARNING Discord en temps réel |
-| **⚙️ Scripts install zero-to-hero** | ✅ | `install.ps1` Windows + `install.sh` Linux — 1 commande |
-| **🧹 Nettoyage scripts** | ✅ | `setup.sh` + `start_agents.sh` supprimés |
-| **📄 .env.example** | ✅ | GPU_ENABLED, GPU_TYPE, DISCORD_TOKEN standardisé |
+| Orchestrateur Go | ✅ | Routing + Queue + WebSocket + API REST + 5 workers |
+| 6 Agents Live | ✅ | `coder` `files` `email` `discord` `cyberdefence` |
+| Discord Jarvis | ✅ | v3.0.0 — commandes naturelles + modération |
+| Dashboard Web | ✅ | Chat + CyberDefence + Paramètres + modèles Ollama |
+| Docker + Just | ✅ | `just start/stop/restart` + 4 configs YAML |
+| CyberDefence v1.1.0 | ✅ | Prompt injection + SQL + anti-replay + alertes Discord |
+| Tests sécurité | ✅ | 5/5 passés — CRITICAL/WARNING Discord temps réel |
+| Scripts install | ✅ | `install.ps1` Windows + `install.sh` Linux — 1 commande |
+| Nettoyage scripts | ✅ | `setup.sh` + `start_agents.sh` supprimés |
+| `.env.example` | ✅ | `GPU_ENABLED`, `GPU_TYPE`, `DISCORD_TOKEN` standardisé |
 
+---
 
-***
+## ✅ Terminé — Mock Layer v4.1.0
 
-## ✅ **TERMINÉ — BITNET + MOCK** `v4.1.0`
-
-
-```
-📊 PERF COMPARÉ :
-┌─────────────────┬────────┬──────────┬──────┐
-│ Backend          │  RAM   │ Temps    │ CPU  │
-├─────────────────┼────────┼──────────┼──────┤
-│ 🟢 Mock Layer    │  0MB   │ **0.5s** │  0%  │
-│ 🔴 BitNet 2B     │ 1.2GB  │ **1-2s** │ 45%  │
-│ 🟡 Ollama 3B     │ 3.5GB  │  5-8s    │ 85%  │
-└─────────────────┴────────┴──────────┴──────┘
-```
+| Backend | RAM | Temps | CPU |
+|---------|-----|-------|-----|
+| 🟢 Mock Layer | 0 MB | 0.5s | 0% |
+| 🟡 Ollama 3B | 3.5 GB | 5–8s | 85% |
 
 ```bash
-just mock-on          # 🧪 Dev instantané 0.5s
-just bitnet-install   # 🚀 6x perf CPU
-just prod             # 🔥 BitNet live
+just mock-on    # Dev instantané
+just prod       # Ollama production
 ```
 
-**Discord** : `@Jarvis !backend bitnet` → **1s réponse !**
+---
 
-***
+## ⏸️ En pause — BitNet (reporter 2027)
 
-## 🔥 **PRIORITÉ #1 : LoRA DYNAMIQUE** `v4.3.0` **(1 semaine)**
+> BitNet b1.58 est trop expérimental sur Windows. Bloqué sur le toolset `ClangCL`
+> absent de VS BuildTools. À reprendre sous Linux/WSL2 ou en 2027.
 
+| Problème | Détail |
+|----------|--------|
+| ClangCL manquant | VS BuildTools 2022 ne l'installe pas correctement |
+| lld-link mainCRTStartup | Linkage CRT cassé avec clang 22 + Ninja |
+| setup_env.py | `NotImplementedError` sur Windows |
 
-```
-           BitNet 2B (1.2GB BASE)
-                  ↓
-    ┌─────────────────────────────┐
-    │        LoRA ROUTER          │
-    │ coder-lora ←── "code python"│
-    │ cyber-lora ←── "scan IP"    │
-    │ fr-lora    ←── "bonjour"    │
-    └──────────────┬──────────────┘
-                   ↓ Auto-switch
-           Réponse spécialisée
-```
+**Alternative recommandée** : `ollama pull qwen2.5-coder:1.5b` — 30 t/s CPU, zéro compilation.
+
+---
+
+## 🔥 Priorité #1 — LoRA Dynamique v4.3.0 *(1 semaine)*
+
+Chaque agent charge automatiquement son adapteur LoRA selon le contexte du message.
+
+| Adapteur | Déclenché par |
+|----------|---------------|
+| `coder-lora` | "code python", "fonction", "bug" |
+| `cyber-lora` | "scan IP", "exploit", "pentest" |
+| `fr-lora` | messages en français |
 
 ```yaml
 lora:
-  base_model: "bitnet-2b"
+  base_model: "ollama/qwen2.5-coder:1.5b"
   auto_switch: true
   adapters:
     coder: "loras/coder.pt"
     cyberdefence: "loras/cyber.pt"
 ```
 
-***
+---
 
-## 👁️ **PRIORITÉ #3 : OBSERVER + CYBERDEF** `v4.3.0` **(2 jours)**
+## 👁️ Priorité #2 — Observer Bus v4.3.0 *(2 jours)*
 
-```
-       ÉVÉNEMENTS CENTRALISÉS
-┌─────────────────────────────────────┐
-│       Event Bus (Observer)          │
-├─────────────────────────────────────┤
-│ 🟢 Mock hit    → Dashboard +1       │
-│ 🔴 LoRA switch → Stats realtime     │
-│ 🟡 Agent error → CyberDefence alert │
-│ 🔵 BitNet perf → /api/metrics       │
-└─────────────────────────────────────┘
-```
+| Événement | Action déclenchée |
+|-----------|------------------|
+| Mock hit | Dashboard +1 |
+| LoRA switch | Stats realtime |
+| Agent error | Alerte CyberDefence |
+| Perf spike | `/api/metrics` |
 
-**Nouvelle page** : `http://localhost:8080/cyberdefence`
+---
 
-***
+## 🛠️ Plan v4.5.0 *(4 semaines)*
 
-## 🛠️ **v4.5.0 FULL STACK** `(4 semaines total)`
+| Semaine | Objectif | Statut |
+|---------|----------|--------|
+| 1 | Mock Layer + tests instantanés | ✅ |
+| 2 | LoRA Router — 10 agents spécialisés | 🔥 En cours |
+| 3 | Observer Bus + CyberDef étendu | ⏳ |
+| 4 | Release v4.5.0 "Lightning Framework" | ⏳ |
 
-```
-🚀 SEMAINE 1  → BitNet + Mock = 6x perf + tests instantanés
-🧠 SEMAINE 2  → LoRA Router = 10 agents spécialisés
-👁️  SEMAINE 3  → Observer + CyberDef = 100% observabilité
-🎉 SEMAINE 4  → v4.5.0 "Lightning Framework" ⭐
-```
+---
 
-***
+## 🔮 Vision 2027 — Marketplace
 
-## 🔮 **VISION 2027 : MARKETPLACE + AGENTS EXPERTS** ✨
-
-```
-🌟 MARKETPLACE LoRA (.pt files téléchargeables)
-
-┌─────────────────────────────────────────────────────────────┐
-│ 👑 CODER PRO       → Python/JS/Go/Rust (98% précision)      │
-│ ₿ CRYPTO EXPERT    → Smart contracts ETH/Solana/MEV bots    │
-│ 🎮 GAMEDEV         → Unity C# / Godot / Pygame              │
-│ 🛡️ PENTEST PRO     → Burp/Metasploit/Nmap scans auto       │
-│ 🤖 ML ENGINEER     → PyTorch/TensorFlow/datasets           │
-│ 🇫🇷 FRANÇAIS TECH   → Docs/code/emails techniques          │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Usage ultra-simple** :
-```bash
-just marketplace install crypto     # ₿ Agent Crypto live !
-@Jarvis code un MEV bot Solana      # Auto-switch crypto-lora
-```
-
-***
-
-## 📱 **INTERFACES 2027**
-
-```
-┌────────────┬────────────┬─────────────────┐
-│ 📱 PWA     │ 💻 VSCode  │ 🤖 Telegram     │
-│ Mobile     │ Extension  │ Bot             │
-├────────────┼────────────┼─────────────────┤
-│ Chat agents│ Code direct│ + Discord       │
-│ partout    │ éditeur    │ support         │
-└────────────┴────────────┴─────────────────┘
-```
-
-***
-
-## 🚀 **JUSTFILE ULTIMATE 2027**
+| Agent | Spécialité |
+|-------|------------|
+| 👑 Coder Pro | Python · JS · Go · Rust |
+| ₿ Crypto Expert | Smart contracts · MEV bots Solana |
+| 🎮 GameDev | Unity C# · Godot · Pygame |
+| 🛡️ Pentest Pro | Burp · Metasploit · Nmap auto |
+| 🤖 ML Engineer | PyTorch · TensorFlow · datasets |
+| 🇫🇷 Français Tech | Docs · code · emails techniques |
 
 ```bash
-# 🎮 QUICKSTARTS (1 ligne = tout)
-just quickstart dev       # Mock + BitNet + coder
-just quickstart crypto    # ₿ Crypto agent live
-just marketplace list     # Voir tous LoRA disponibles
-
-# ⚡ PERF + TESTS
-just bench-all            # Mock vs BitNet vs LoRA
-just mock-test 1000       # 1000 req simulées
-just perf-report          # GitHub release ready
+just marketplace install crypto   # Agent Crypto live
+just marketplace list             # Voir tous les LoRA disponibles
 ```
 
-***
+---
 
-## 📊 **ÉVOLUTION COMPLÈTE**
+## 📊 Évolution
 
+| Version | Agents | Perf | Features |
+|---------|--------|------|----------|
+| ✅ v4.0 | 6 | Ollama | Discord + Web |
+| ✅ v4.2 | 6 | Mock 52x | CyberDef + Scripts |
+| 🔥 v4.5 | 10+ | LoRA auto | LoRA + Observer |
+| ⭐ 2027 | 50+ | LoRA + Marketplace | Crypto + Pentest |
+
+---
+
+## 🎯 Prochaines étapes *(7 jours)*
+
+1. `just mock-on` — tests 0.5s ✅
+2. LoRA Router v4.3.0 — 10 agents spécialisés
+3. Observer Bus — 100% observabilité
+4. `git push v4.5.0` — release GitHub
+
+---
+
+⭐ [github.com/loic31000/local-agents](https://github.com/loic31000/local-agents) — Local Agents · Framework IA Local #1 (2026–2027)
 ```
-           AGENTS  |  PERF     |  FEATURES             | MARKETPLACE
-┌──────────┼────────┼──────────────┬──────────────────┬──────────────┐
-│ ✅ v4.0  │   6    │  Ollama      │ Discord + Web    │ -            │
-│ 🔥 v4.5  │  10+   │ BitNet 6x    │ Mock+LoRA+Obs    │ -            │
-│ ⭐ 2027  │  50+   │ BitNet+LoRA  │ Marketplace+Crypto│ #1 Framework │
-└──────────┴────────┴──────────────┴──────────────────┴──────────────┘
+
+Puis :
+
+```powershell
+git add ROADMAP.md
+git commit -m "docs: ROADMAP propre — tableaux Markdown natifs, zéro ASCII art"
+git push
 ```
-
-***
-
-<div align="center">
-
-## 🎯 **PROCHAINES ÉTAPES** `(7 jours)`
-
-```
-1️⃣ just bitnet-install    → 🚀 6x perf CPU
-2️⃣ just mock-on           → 🧪 Tests 0.5s
-3️⃣ git push v4.1.0        → ⭐ Release GitHub
-4️⃣ @Jarvis !backend bitnet→ 🔥 Discord 1s réponse
-```
-
-<span style="color: #FF6B6B; font-weight: bold; font-size: 1.3em;">
-**Local Agents → Framework IA Local #1 (2026-2027)**
-</span>
-
-⭐ **Star le repo !** [github.com/loic31000/local-agents](https://github.com/loic31000/local-agents)
-
-</div>
-
-***
-
-**✅ Architecture 100% ASCII = fonctionne partout !** 🎉

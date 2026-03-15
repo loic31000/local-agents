@@ -73,7 +73,7 @@ func (a *BaseAgent) Execute(ctx context.Context, task *Task) (*Result, error) {
 		}
 	}
 
-	// Router vers le bon backend (Mock / BitNet / Ollama)
+	// Router vers le bon backend (Mock / Ollama)
 	response, err := a.router.Chat(ctx, model, messages, &llm.Options{
 		Temperature: 0.7,
 	})

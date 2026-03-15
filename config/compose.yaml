@@ -28,6 +28,7 @@ services:
       - ../config/config.docker.yaml:/root/config.yaml:ro
       - ../web:/root/web:ro
       - ../prompts:/root/prompts:ro
+      - ../.backend:/root/.backend
     env_file:
       - ../.env
     environment:

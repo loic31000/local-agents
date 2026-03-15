@@ -60,12 +60,6 @@ mock-on:
 ollama-on:
     @echo ollama > .backend
 
-bitnet-on:
-    @echo bitnet > .backend
-
-bitnet-install:
-    chmod +x scripts/bitnet-install.sh && bash scripts/bitnet-install.sh
-
 patch-llm:
     python3 scripts/llm_client_patch.py
 

@@ -3,7 +3,6 @@ Commandes !backend pour le bot Discord Jarvis.
 
 Permet de changer le backend LLM depuis Discord :
     @Jarvis !backend mock     → 0.3s, 0MB RAM (dev)
-    @Jarvis !backend bitnet   → 1-2s, 1.2GB RAM (perf)
     @Jarvis !backend ollama   → 5-8s, 3.5GB RAM (défaut)
     @Jarvis !backend status   → infos sur le backend actif
     @Jarvis !backend bench    → benchmark comparatif
@@ -34,14 +33,6 @@ BACKENDS = {
         "latency": "~0.3s",
         "cpu": "0%",
         "desc": "Réponses simulées — développement instantané",
-    },
-    "bitnet": {
-        "name": "BitNet 2B",
-        "emoji": "⚡",
-        "ram": "1.2 GB",
-        "latency": "~1-2s",
-        "cpu": "45%",
-        "desc": "Microsoft BitNet 1-bit — 6x plus rapide qu'Ollama",
     },
     "ollama": {
         "name": "Ollama",
@@ -121,7 +112,6 @@ async def handle_backend_command(message) -> None:
     Exemples :
         !backend             → affiche le statut
         !backend mock        → active le Mock
-        !backend bitnet      → active BitNet
         !backend ollama      → active Ollama
         !backend status      → statut détaillé
         !backend bench       → benchmark rapide
@@ -168,7 +158,6 @@ async def handle_backend_command(message) -> None:
         "**🔧 Commandes !backend**\n\n"
         "`!backend`            → statut des backends\n"
         "`!backend mock`       → 🧪 Mock (0.3s, 0MB)\n"
-        "`!backend bitnet`     → ⚡ BitNet (1-2s, 1.2GB)\n"
         "`!backend ollama`     → 🦙 Ollama (5-8s, 3.5GB)\n"
         "`!backend bench`      → benchmark comparatif\n"
     )

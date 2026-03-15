@@ -15,14 +15,12 @@ type Backend string
 const (
 	BackendOllama Backend = "ollama"
 	BackendMock   Backend = "mock"
-	BackendBitNet Backend = "bitnet"
 )
 
 // BackendRouter route les requêtes vers le bon backend selon .backend ou BACKEND envvar
 type BackendRouter struct {
 	ollama    *OllamaClient
 	mock      *MockClient
-	bitnet    *BitNetClient
 	backendFile string
 }
 
@@ -202,72 +200,4 @@ func (m *MockClient) ListModels(ctx context.Context) ([]string, error) {
 		}
 	}
 	return models, nil
-}
-
-// ─── BitNet Client ────────────────────────────────────────────────────────────
-
-// BitNetClient appelle le serveur HTTP BitNet local (port 8099)
-// ou délègue à Ollama si BitNet n'est pas disponible
-type BitNetClient struct {
-	serverURL  string
-	httpClient *OllamaClient // réutilise le client HTTP d'Ollama
-	available  bool
-}
-
-func NewBitNetClient() *BitNetClient {
-	c := &BitNetClient{
-		serverURL: "http://localhost:8099",
-	}
-	// Vérifier si le binaire BitNet est disponible
-	c.available = c.checkAvailable()
-	return c
-}
-
-func (b *BitNetClient) checkAvailable() bool {
-	// Vérifier si .backend contient "bitnet" ET si le modèle est téléchargé
-	modelPath := os.Getenv("HOME") + "/.local-agents/models/bitnet/model"
-	if _, err := os.Stat(modelPath); err != nil {
-		return false
-	}
-	return true
-}
-
-func (b *BitNetClient) Ping(ctx context.Context) error {
-	if !b.available {
-		return fmt.Errorf("BitNet non disponible — lancer 'just bitnet-install'")
-	}
-	return nil
-}
-
-func (b *BitNetClient) Chat(ctx context.Context, model string, messages []Message, opts *Options) (*ChatResponse, error) {
-	if !b.available {
-		return nil, fmt.Errorf("BitNet non disponible")
-	}
-
-	// Construire le prompt depuis les messages
-	var prompt strings.Builder
-	for _, msg := range messages {
-		switch msg.Role {
-		case "system":
-			prompt.WriteString(fmt.Sprintf("<|system|>\n%s\n", msg.Content))
-		case "user":
-			prompt.WriteString(fmt.Sprintf("<|user|>\n%s\n", msg.Content))
-		case "assistant":
-			prompt.WriteString(fmt.Sprintf("<|assistant|>\n%s\n", msg.Content))
-		}
-	}
-	prompt.WriteString("<|assistant|>\n")
-
-	// Appeler le serveur BitNet via son API OpenAI-compatible
-	bitnetOllama := NewOllamaClient(b.serverURL)
-	resp, err := bitnetOllama.Chat(ctx, "bitnet-b1.58-2B-4T", messages, opts)
-	if err != nil {
-		return nil, fmt.Errorf("BitNet error: %w", err)
-	}
-	resp.Model = "microsoft/bitnet-b1.58-2B-4T"
-	return resp, nil
-}
-
-func (b *BitNetClient) ListModels(ctx context.Context) ([]string, error) {
-	return []string{"microsoft/bitnet-b1.58-2B-4T"}, nil
 }

@@ -1,10 +1,9 @@
 """
 Patch pour agents/common/llm_client.py
-Ajouter Mock et BitNet comme backends.
+Ajoute Mock comme backend.
 
 Appliquer avec :
     python3 scripts/apply_llm_patch.py
-Ou manuellement selon les instructions ci-dessous.
 """
 
 # ─── 1. Dans la classe LLMBackend ─────────────────────────────────────────────
@@ -19,8 +18,6 @@ Ou manuellement selon les instructions ci-dessous.
 #         OLLAMA  = "ollama"
 #         GGUF    = "gguf"
 #         MOCK    = "mock"
-#         BITNET  = "bitnet"
-
 
 # ─── 2. Dans LLMClient.__init__ ───────────────────────────────────────────────
 #
@@ -32,40 +29,24 @@ Ou manuellement selon les instructions ci-dessous.
 #             agent_id=kwargs.pop("agent_id", "_default"),
 #             simulate_delay=kwargs.pop("simulate_delay", True),
 #         )
-#
-#     elif self.backend_type == LLMBackend.BITNET:
-#         from common.bitnet_provider import BitNetProvider
-#         if not BitNetProvider().is_available():
-#             raise RuntimeError(
-#                 "BitNet non disponible. Installer avec : just bitnet-install"
-#             )
-#         self._provider = BitNetProvider(
-#             model_path=kwargs.get("model_path"),
-#             n_threads=kwargs.get("n_threads", 4),
-#             context_size=kwargs.get("context_size", 2048),
-#         )
-
 
 # ─── 3. Dans create_client — détection automatique du backend ─────────────────
 #
 # Remplacer le bloc "auto" par :
 #
 #     if backend == "auto":
-#         # Lire depuis envvar BACKEND (set par just mock-on / bitnet-on)
 #         import os
 #         backend = os.getenv("BACKEND", "")
 #         if not backend:
-#             # Auto-détection classique
 #             if "model_path" in kwargs:
 #                 backend = "gguf"
 #             else:
 #                 backend = "ollama"
 
-
 # ─── Script d'application automatique ────────────────────────────────────────
 
-import re
 from pathlib import Path
+
 
 def apply_patch():
     target = Path("agents/common/llm_client.py")
@@ -75,7 +56,7 @@ def apply_patch():
 
     content = target.read_text()
 
-    # Patch 1 : ajouter MOCK et BITNET à LLMBackend
+    # Patch 1 : ajouter MOCK à LLMBackend
     old = '''class LLMBackend(Enum):
     """Backends LLM supportés."""
     OLLAMA = "ollama"
@@ -85,16 +66,15 @@ def apply_patch():
     """Backends LLM supportés."""
     OLLAMA  = "ollama"
     GGUF    = "gguf"
-    MOCK    = "mock"
-    BITNET  = "bitnet"'''
+    MOCK    = "mock"'''
 
     if old not in content:
         print("WARN : Patch 1 déjà appliqué ou structure modifiée")
     else:
         content = content.replace(old, new, 1)
-        print("OK : Patch 1 — LLMBackend.MOCK + BITNET")
+        print("OK : Patch 1 — LLMBackend.MOCK ajouté")
 
-    # Patch 2 : ajouter les providers dans __init__
+    # Patch 2 : ajouter MockProvider dans __init__
     old2 = '''        else:
             raise ValueError(f"Backend inconnu: {backend}")'''
 
@@ -105,14 +85,6 @@ def apply_patch():
                 simulate_delay=kwargs.pop("simulate_delay", True),
             )
 
-        elif self.backend_type == LLMBackend.BITNET:
-            from common.bitnet_provider import BitNetProvider
-            self._provider = BitNetProvider(
-                model_path=kwargs.get("model_path"),
-                n_threads=kwargs.get("n_threads", 4),
-                context_size=kwargs.get("context_size", 2048),
-            )
-
         else:
             raise ValueError(f"Backend inconnu: {backend}")'''
 
@@ -120,7 +92,7 @@ def apply_patch():
         print("WARN : Patch 2 déjà appliqué ou structure modifiée")
     else:
         content = content.replace(old2, new2, 1)
-        print("OK : Patch 2 — MockProvider + BitNetProvider dans __init__")
+        print("OK : Patch 2 — MockProvider dans __init__")
 
     # Patch 3 : auto-détection depuis BACKEND envvar
     old3 = '''    if backend == "auto":
@@ -132,9 +104,8 @@ def apply_patch():
 
     new3 = '''    if backend == "auto":
         import os
-        # Lire le backend depuis envvar (set par just mock-on / bitnet-on / ollama-on)
         env_backend = os.getenv("BACKEND", "")
-        if env_backend and env_backend in ("mock", "bitnet", "ollama", "gguf"):
+        if env_backend and env_backend in ("mock", "ollama", "gguf"):
             backend = env_backend
         elif "model_path" in kwargs:
             backend = "gguf"
