@@ -345,11 +345,3 @@ tools:
     name: "LinkedIn"
     description: "Publication sur LinkedIn"
     handler: "internal/tools/linkedin.go"
-
-
-# BitNet
-bitnet:
-  model_id: "microsoft/bitnet-b1.58-2B-4T"
-  model_path: "~/.local-agents/models/bitnet/model"
-  n_threads: 4
-  context_size: 2048
