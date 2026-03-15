@@ -1,419 +1,357 @@
-# 🤖 Local Agents
-
 <div align="center">
 
-![Local Agents](https://img.shields.io/badge/100%25-Local-green?style=for-the-badge)
-![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python)
-![Ollama](https://img.shields.io/badge/Ollama-Powered-black?style=for-the-badge)
-![Discord](https://img.shields.io/badge/Discord-Bot-5865F2?style=for-the-badge&logo=discord)
-![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+# 🤖 Local Agents
 
-**Framework multi-agents IA 100% local avec Ollama**
+**Agent IA 100% local — GPU natif, zéro cloud, zéro abonnement**
 
-*Zéro coût API • Données privées • Fonctionne hors-ligne • Bot Discord intégré*
-
-[Installation](#-installation) •
-[Bot Discord](#-bot-discord-jarvis) •
-[Interface Web](#-interface-web) •
-[Configuration](#%EF%B8%8F-configuration) •
-[API](#-api-rest)
+![Version](https://img.shields.io/badge/version-0.2.0-6366f1?style=flat-square)
+![Go](https://img.shields.io/badge/Go-1.23-00ADD8?style=flat-square&logo=go)
+![llama.cpp](https://img.shields.io/badge/llama.cpp-b8323-22c55e?style=flat-square)
+![GPU](https://img.shields.io/badge/RTX_3070-GPU-76b900?style=flat-square&logo=nvidia)
+![License](https://img.shields.io/badge/license-MIT-f59e0b?style=flat-square)
 
 </div>
 
 ---
 
-## 📸 Aperçu
+## 📸 Interface
 
-### Interface Web
-![Dashboard](docs/screenshots/dashboard.png)
-*Interface web avec agents (coder, files, email, social, discord) et chat IA*
+### Chat principal
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Local Agents  ● Connecté  ● Qwen2.5-32B  GPU 42%  68°C   ⚡CPU│
+├──────────┬──────────────────────────────────────────────────────┤
+│  AGENTS  │  Chat    CyberDefence    Paramètres                  │
+│ ▶ Coder  │                                                      │
+│   Files  │  ┌────────────────────────────────────────────────┐  │
+│          │  │                                                │  │
+│ MODÈLE   │  │   Sélectionne un agent et envoie un message   │  │
+│ Qwen2.5  │  │                                                │  │
+│ ████ 20% │  └────────────────────────────────────────────────┘  │
+│ VRAM 7GB │                                                      │
+│          │  ┌────────────────────────────────────────────────┐  │
+│ SYSTÈME  │  │  Message...                               0    │  │
+│ GPU  42% │  │                              [  Envoyer  →  ] │  │
+│ VRAM 6/8 │  └────────────────────────────────────────────────┘  │
+│ RAM  18G │                                                      │
+│ 68°C     │                                                      │
+└──────────┴──────────────────────────────────────────────────────┘
+```
 
-### Bot Discord
-![Discord Bot](docs/screenshots/discord-bot.png)
-*Bot Jarvis avec gestion des modèles et génération de code*
+### Switcher de modèle
+```
+┌─────────────────────────────────────────────────────┐
+│  🖥 Changer de modèle                               │
+│  Clique ⚡ Charger — redémarre automatiquement       │
+├─────────────────────────────────────────────────────┤
+│  🟢 Llama-3.2-3B   Rapide    2GB VRAM   ctx 16k    │
+│  Ultra rapide, idéal pour les tâches simples        │
+│  [● Actif]                                          │
+├─────────────────────────────────────────────────────┤
+│  🟡 Mistral-7B     Équilibré  5GB VRAM  ctx 16k    │
+│  Excellent équilibre vitesse/qualité, bon français  │
+│  [⚡ Charger]                                       │
+├─────────────────────────────────────────────────────┤
+│  🟣 Qwen2.5-32B    Meilleur  7GB+11GB  ctx 8k      │
+│  Niveau GPT-4o, raisonnement avancé et code        │
+│  [⚡ Charger]                                       │
+└─────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## ✨ Fonctionnalités
 
 | Fonctionnalité | Description |
-|----------------|-------------|
-| 🏠 **100% Local** | Tout tourne sur ta machine avec Ollama |
-| 🤖 **Bot Discord Jarvis** | Comprend le français naturel avec IA |
-| 🧠 **Multi-Modèles** | Change de modèle à la volée (`!model llama3.2:3b`) |
-| 🌐 **Interface Web** | Dashboard pour chatter avec les agents |
-| ⚡ **Go + Python** | Orchestrateur Go performant + agents Python |
-| 💻 **Génération de code** | Demande du code dans n'importe quel langage |
-| 🔧 **Extensible** | Ajoute facilement tes propres agents |
+|---|---|
+| 🎯 **100% local** | Zéro cloud, zéro API payante, données privées |
+| ⚡ **GPU natif** | llama.cpp avec CUDA — RTX 3070 optimisé |
+| 🔄 **Switch modèle** | Change de modèle en 1 clic depuis l'interface |
+| 📁 **Filesystem** | Lit, crée et modifie des fichiers réels |
+| 💻 **VSCode bridge** | Ouvre les fichiers directement dans VSCode |
+| 📊 **Monitoring** | GPU%, VRAM, RAM, température, tokens/sec en live |
+| 🌐 **Interface web** | Dashboard dark mode, WebSocket temps réel |
+| 🛡️ **CyberDefence** | Monitoring sécurité intégré |
+
+---
+
+## 🖥️ Hardware requis
+
+| Composant | Minimum | Setup testé |
+|---|---|---|
+| GPU | GTX 1060 6GB | **RTX 3070 8GB** |
+| RAM | 16 GB | **32 GB DDR5** |
+| CPU | 4 cores | **i5-13600KF** |
+| OS | Windows 10 | **Windows 11** |
+| Stockage | 10 GB | SSD NVMe |
+
+---
+
+## 🤖 Modèles supportés
+
+| Modèle | VRAM | RAM DDR5 | Vitesse | Qualité | Équivalent |
+|---|---|---|---|---|---|
+| **Llama-3.2-3B Q4_K_M** | 2 GB | 0 GB | ~50 t/s | ⭐⭐ | GPT-3 |
+| **Mistral-7B Q4_K_M** | 5 GB | 0 GB | ~30 t/s | ⭐⭐⭐ | GPT-3.5 |
+| **Qwen2.5-32B Q4_K_S** | 7 GB | 11 GB | ~4 t/s | ⭐⭐⭐⭐⭐ | GPT-4o |
+
+Les modèles `.gguf` se placent dans :
+```
+C:\Users\<user>\AppData\Local\Ollama\models\
+```
 
 ---
 
 ## 🚀 Installation
 
-### Prérequis
+### 1. Prérequis
 
-| Outil | Version | Installation |
-|-------|---------|--------------|
-| **Go** | 1.22+ | [go.dev/dl](https://go.dev/dl/) |
-| **Python** | 3.10+ | [python.org](https://python.org) |
-| **Ollama** | latest | [ollama.com](https://ollama.com) |
+- [Go 1.22+](https://go.dev/dl/)
+- [Node.js 18+](https://nodejs.org/) (pour le bridge VSCode)
+- [llama.cpp binaires CUDA](https://github.com/ggerganov/llama.cpp/releases/latest)
 
-### Installation rapide
+### 2. Cloner le projet
 
-```bash
-# 1. Clone le repo
+```powershell
 git clone https://github.com/loic31000/local-agents.git
 cd local-agents
-
-# 2. Installe Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# 3. Télécharge les modèles
-ollama pull llama3.2:3b      # Recommandé (2 GB)
-ollama pull phi3:mini        # Rapide (2.3 GB)
-ollama pull mistral:7b       # Excellent français (4 GB)
-
-# 4. Installe les dépendances
-./scripts/setup.sh install
-
-# 5. Configure ton environnement
-cp .env.example .env
-nano .env                    # Ajoute ton token Discord
-
-# 6. Compile et lance
-./scripts/setup.sh build
-./scripts/setup.sh start
 ```
 
-🎉 **Interface web** → http://localhost:8080
+### 3. Télécharger llama.cpp
+
+Va sur [github.com/ggerganov/llama.cpp/releases](https://github.com/ggerganov/llama.cpp/releases/latest) et télécharge :
+- `llama-bXXXX-bin-win-cuda-cu12.4-x64.zip`
+
+Extrais tout dans `C:\Users\<user>\local-agents\`
+
+### 4. Télécharger un modèle
+
+```powershell
+# Exemple avec Mistral-7B depuis HuggingFace (bartowski)
+# Place le .gguf dans :
+C:\Users\<user>\AppData\Local\Ollama\models\
+```
+
+### 5. Lancer
+
+```powershell
+.\run_agent.bat
+```
+
+> C'est tout ! Le script détecte llama-server, le lance si nécessaire, compile Go et ouvre l'interface.
 
 ---
 
-## 🤖 Bot Discord "Jarvis"
+## 📁 Structure du projet
 
-Le bot comprend le **français naturel** grâce à Ollama !
-
-### Configuration Discord
-
-1. Va sur [Discord Developer Portal](https://discord.com/developers/applications)
-2. Crée une application → Bot → **Reset Token** → Copie le token
-3. Active les **Intents** : Presence, Server Members, Message Content
-4. Invite le bot sur ton serveur avec les permissions Administrator
-
-```bash
-# Ajoute le token dans .env
-DISCORD_BOT_TOKEN="ton_token_ici"
-
-# Redémarre
-./scripts/setup.sh restart
 ```
-
-### Commandes Discord
-
-#### 🧠 Gestion des modèles
+local-agents/
+├── cmd/
+│   └── orchestrator/
+│       ├── main.go              # Serveur HTTP + WebSocket
+│       ├── model_switcher.go    # Switch modèle depuis l'UI
+│       └── system_stats.go      # Stats GPU/RAM/TPS
+├── internal/
+│   ├── agent/
+│   │   ├── base.go              # Logique agent + tool calling
+│   │   └── types.go             # Types partagés
+│   ├── llm/
+│   │   ├── client.go            # Interface LLMClient
+│   │   ├── llamacpp.go          # Client llama-server
+│   │   └── ollama.go            # Client Ollama
+│   └── tools/
+│       ├── filesystem.go        # Lire/écrire fichiers
+│       ├── git.go               # Commandes git
+│       ├── terminal.go          # Exécution commandes
+│       └── vscode.go            # Contrôle VSCode
+├── web/
+│   └── static/
+│       └── index.html           # Interface web complète
+├── prompts/
+│   ├── coder.md                 # Prompt agent codeur
+│   └── files.md                 # Prompt agent fichiers
+├── bridge.js                    # Bridge Node.js → VSCode (port 3333)
+├── config.yaml                  # Configuration
+├── run_agent.bat                # 🚀 Lance tout en 1 commande
+├── start_llama.bat              # Lance llama-server seul
+└── start_bridge.bat             # Lance le bridge VSCode
 ```
-!models                    → Liste les modèles disponibles
-!model llama3.2:3b         → Change de modèle
-!model phi3:mini           → Modèle plus rapide
-!model mistral:7b          → Meilleur pour le français
-!ping                      → Test le bot
-!help                      → Affiche l'aide
-```
-
-#### 👑 Gestion des rôles
-```
-@Jarvis donne moi admin
-@Jarvis donne le role vip à @utilisateur
-@Jarvis retire le role modo à @utilisateur
-```
-
-#### 🛡️ Modération
-```
-@Jarvis kick @troll
-@Jarvis ban @spammer
-@Jarvis mute @utilisateur 30 minutes
-@Jarvis supprime 50 messages
-@Jarvis nettoie le salon
-```
-
-#### 📌 Messages
-```
-@Jarvis épingle ça
-@Jarvis désépingle
-@Jarvis stats du serveur
-```
-
-#### 💻 Génération de code
-```
-@Jarvis code une fonction fibonacci en python
-@Jarvis écris un serveur express en nodejs
-@Jarvis code un ratelimiter en javascript
-@Jarvis fais moi un script bash pour backup
-```
-
-#### 💬 Conversation IA
-```
-@Jarvis c'est quoi Docker ?
-@Jarvis explique moi les promises en JS
-@Jarvis salut comment ça va ?
-```
-
-### Modèles recommandés
-
-| Modèle | Taille | Qualité | Vitesse | Usage |
-|--------|--------|---------|---------|-------|
-| `qwen2:1.5b` | 1 GB | ⭐⭐ | ⭐⭐⭐⭐⭐ | Tests rapides |
-| `phi3:mini` | 2.3 GB | ⭐⭐⭐ | ⭐⭐⭐⭐ | Équilibré |
-| `llama3.2:3b` | 2 GB | ⭐⭐⭐⭐ | ⭐⭐⭐ | **Recommandé** |
-| `mistral:7b` | 4 GB | ⭐⭐⭐⭐⭐ | ⭐⭐ | Excellent français |
-| `deepseek-coder:6.7b` | 4 GB | ⭐⭐⭐⭐⭐ | ⭐⭐ | Code |
-
-```bash
-# Installer un modèle
-ollama pull mistral:7b
-
-# Lister les modèles
-ollama list
-
-# Supprimer un modèle
-ollama rm qwen2:1.5b
-```
-
----
-
-## 🌐 Interface Web
-
-Accès : **http://localhost:8080**
-
-### Fonctionnalités
-
-- 💬 **Chat** avec les agents (coder, files, email, social, discord)
-- 🔄 **Changer de modèle** en temps réel
-- 📊 **Statistiques** du système
-- ⚙️ **Configuration** des agents
-
-### Agents disponibles
-
-| Agent | Description | Outils |
-|-------|-------------|--------|
-| **coder** | Génération de code | vscode, git, terminal, filesystem |
-| **files** | Gestion de fichiers | filesystem |
-| **email** | Envoi d'emails | smtp |
-| **social** | Réseaux sociaux | twitter, linkedin |
-| **discord** | Bot Discord | discord.py |
 
 ---
 
 ## ⚙️ Configuration
 
-### Fichier `.env`
-
-```bash
-# Copie le template
-cp .env.example .env
-```
-
-```env
-# Ollama
-OLLAMA_URL=http://localhost:11434
-
-# Discord Bot (obligatoire pour le bot)
-DISCORD_BOT_TOKEN="ton_token_discord"
-
-# Email (optionnel - Gmail avec mot de passe d'application)
-EMAIL_USER=ton.email@gmail.com
-EMAIL_PASS="xxxx xxxx xxxx xxxx"
-
-# Twitter/X (optionnel)
-TWITTER_API_KEY=
-TWITTER_API_SECRET=
-```
-
-### Fichier `config.yaml`
+`config.yaml` — les options principales :
 
 ```yaml
-server:
-  host: "0.0.0.0"
-  port: 8080
+llm_backend: "llamacpp"          # ou "ollama"
 
-ollama:
-  base_url: "http://localhost:11434"
-  default_model: "llama3.2:3b"
-  models:
-    coding: "llama3.2:3b"
-    general: "llama3.2:3b"
-    fast: "phi3:mini"
+llamacpp:
+  server_url: "http://localhost:8081"
+  default_model: "Qwen2.5-32B-Instruct-Q4_K_S"
 
 agents:
   coder:
     enabled: true
-    model: "coding"
-    tools: ["vscode", "git", "terminal", "filesystem"]
-  
+    tools: [vscode, git, terminal, filesystem]
+    allowed_paths:
+      - "C:\\Users\\romano\\local-agents"
+      - "C:\\Users\\romano\\Documents"
+
   files:
     enabled: true
-    tools: ["filesystem"]
+    tools: [filesystem]
+    allowed_paths:
+      - "C:\\Users\\romano\\local-agents"
 ```
 
 ---
 
-## 🔌 API REST
+## 🌐 API
 
-### Endpoints
+| Endpoint | Méthode | Description |
+|---|---|---|
+| `/api/health` | GET | Statut du serveur |
+| `/api/agents` | GET | Liste des agents |
+| `/api/chat/{agent}` | POST | Envoyer un message |
+| `/api/model/list` | GET | Modèles disponibles |
+| `/api/model/switch` | POST | Changer de modèle |
+| `/api/system/stats` | GET | Stats GPU/RAM/TPS |
+| `/ws` | WebSocket | Temps réel |
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `GET` | `/api/health` | Statut du système |
-| `GET` | `/api/agents` | Liste des agents |
-| `POST` | `/api/chat/{agent}` | Envoyer un message |
-| `GET` | `/api/ollama/models` | Liste modèles Ollama |
-| `POST` | `/api/ollama/pull` | Télécharger un modèle |
-| `DELETE` | `/api/ollama/delete` | Supprimer un modèle |
+---
 
-### Exemples
+## 💬 Utilisation des agents
 
-```bash
-# Statut
-curl http://localhost:8080/api/health
+### Agent Coder
 
-# Liste des agents
-curl http://localhost:8080/api/agents
+L'agent coder utilise le format tool suivant :
 
-# Chat avec l'agent coder
-curl -X POST http://localhost:8080/api/chat/coder \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Code un hello world en Python"}'
-
-# Liste des modèles Ollama
-curl http://localhost:8080/api/ollama/models
+```
+```tool
+{"tool": "filesystem", "params": {"action": "read", "path": "C:\\Users\\romano\\local-agents\\config.yaml"}}
+```
 ```
 
-### WebSocket
+**Actions disponibles :**
 
-```javascript
-const ws = new WebSocket('ws://localhost:8080/ws');
+```
+filesystem → read, write, list, delete
+git        → status, add, commit, push, log
+terminal   → command (PowerShell)
+vscode     → open, read, write, replace, diff
+```
 
-ws.send(JSON.stringify({
-  type: 'chat',
-  payload: { agent: 'coder', message: 'Hello!' }
-}));
+### Exemples de prompts
 
-ws.onmessage = (e) => console.log(JSON.parse(e.data));
+```
+"Lis le fichier main.go et explique l'architecture"
+"Crée un fichier C:\local-agents\test.py avec un hello world"
+"Liste tous les fichiers .go du projet"
+"Ouvre config.yaml dans VSCode"
 ```
 
 ---
 
-## 🛠️ Commandes
+## 📊 Monitoring en temps réel
 
-```bash
-# Installation
-./scripts/setup.sh install    # Dépendances
-./scripts/setup.sh build      # Compiler
-./scripts/setup.sh models     # Télécharger modèles
+Le widget SYSTÈME dans la sidebar affiche toutes les 5 secondes :
 
-# Services
-./scripts/setup.sh start      # Démarrer
-./scripts/setup.sh stop       # Arrêter
-./scripts/setup.sh restart    # Redémarrer
-./scripts/setup.sh status     # Statut
-./scripts/setup.sh logs       # Logs
+```
+RTX 3070
+GPU    ████░░░░  42%
+VRAM   ███████░  6.1 / 7.8 GB
+RAM    ██████░░  18.2 / 32 GB
+Temp   68°C  🟢
+KV     ████░░░░  45%
+       ⚡ 4.27 t/s
+```
+
+Chaque réponse affiche aussi :
+```
+⏱ 12.3s    ⚡ 4.27 t/s
 ```
 
 ---
 
-## 🏗️ Architecture
+## 🔧 Services
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      INTERFACES                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │   Web UI     │  │ Discord Bot  │  │     CLI      │       │
-│  │   :8080      │  │   Jarvis     │  │              │       │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
-└─────────┼─────────────────┼─────────────────┼───────────────┘
-          │                 │                 │
-          ▼                 ▼                 ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   ORCHESTRATEUR (Go)                         │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐                │
-│  │  Router   │  │Task Queue │  │ WebSocket │                │
-│  └───────────┘  └───────────┘  └───────────┘                │
-│                                                              │
-│  ┌─────────────────────────────────────────────────┐        │
-│  │              Agent Manager                       │        │
-│  │  ┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐       │        │
-│  │  │ Coder │ │ Files │ │ Email │ │Discord│       │        │
-│  │  └───────┘ └───────┘ └───────┘ └───────┘       │        │
-│  └─────────────────────────────────────────────────┘        │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    OLLAMA (LLM Local)                        │
-│       llama3.2:3b │ phi3:mini │ mistral:7b │ ...            │
-└─────────────────────────────────────────────────────────────┘
-```
+| Service | Port | Commande |
+|---|---|---|
+| Interface web | 8080 | `run_agent.bat` |
+| llama-server | 8081 | `start_llama.bat` ou auto |
+| VSCode bridge | 3333 | `start_bridge.bat` |
 
-### Structure du projet
+---
 
-```
-local-agents/
-├── cmd/
-│   └── orchestrator/main.go    # Serveur Go
-├── internal/
-│   ├── agent/                  # Logique agents
-│   ├── llm/ollama.go          # Client Ollama
-│   └── tools/                  # Outils (git, terminal, fs)
-├── agents/
-│   └── discord/bot.py         # Bot Discord Jarvis
-├── web/static/index.html       # Interface web
-├── scripts/setup.sh            # Script de gestion
-├── config.yaml                 # Configuration
-├── .env.example                # Template environnement
-└── README.md
+## 🔄 Switcher de modèle
+
+Depuis l'interface (Settings → Modèle GPU actif) :
+
+1. Clique sur **⚡ Charger** sur la carte du modèle voulu
+2. Attends ~10s (3B) ou ~60s (32B) pendant le chargement
+3. Le modèle est actif — badge **● ACTIF** vert
+
+Le serveur redémarre automatiquement sans quitter l'interface.
+
+---
+
+## 🛠️ Développement
+
+```powershell
+# Compiler manuellement
+go build -o orchestrator.exe .\cmd\orchestrator\
+
+# Lancer en mode dev
+$env:PATH = "C:\Program Files\Go\bin;" + $env:PATH
+.\run_agent.bat
+
+# Voir les logs llama-server
+cat logs\llama-server.log
 ```
 
 ---
 
-## 🤝 Contribuer
+## 📝 Changelog
 
-Les contributions sont bienvenues !
+### v0.2.0
+- ✅ Backend llama.cpp (GPU natif, sans Ollama)
+- ✅ Switch de modèle depuis l'interface web
+- ✅ Monitoring GPU/RAM/TPS en temps réel
+- ✅ Bridge VSCode (Node.js standalone)
+- ✅ Tokens/sec + durée sur chaque réponse
+- ✅ Auto-switch modèle selon l'agent sélectionné
+- ✅ Prompts few-shot pour le tool calling Windows
 
-```bash
-# Fork et clone
-git clone https://github.com/TON-USER/local-agents.git
+### v0.1.0
+- ✅ Architecture multi-agents (Go)
+- ✅ Interface web WebSocket
+- ✅ Outils : filesystem, git, terminal, vscode
 
-# Nouvelle branche
-git checkout -b feature/ma-feature
+---
 
-# Commit
-git commit -m "feat: ajoute ma feature"
+## 📋 Prérequis logiciels
 
-# Push et PR
-git push origin feature/ma-feature
+```powershell
+# Vérifier Go
+go version
+
+# Vérifier Node.js
+node --version
+
+# Vérifier CUDA
+nvidia-smi
+
+# Vérifier llama-server
+.\llama-server.exe --version
 ```
-
----
-
-## 📜 Licence
-
-MIT - Fais ce que tu veux !
-
----
-
-## 🙏 Crédits
-
-- [Ollama](https://ollama.com) - LLM local
-- [discord.py](https://discordpy.readthedocs.io/) - Bot Discord
-- La communauté open-source ❤️
 
 ---
 
 <div align="center">
 
-**⭐ Star ce repo si tu le trouves utile !**
+**Fait avec ❤️ — 100% local, 100% privé**
 
-Made with ❤️ by [loic31000](https://github.com/loic31000)
+*RTX 3070 · i5-13600KF · 32GB DDR5 · Windows 11*
 
 </div>
