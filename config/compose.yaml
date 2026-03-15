@@ -1,6 +1,4 @@
 services:
-
-  # ── Ollama — LLM backend ────────────────────────────────────────────────────
   ollama:
     image: ollama/ollama:latest
     container_name: local-agents-ollama
@@ -10,25 +8,16 @@ services:
       - ollama_data:/root/.ollama
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD", "ollama", "list"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-    # Décommenter pour NVIDIA GPU :
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
 
-  # ── Orchestrateur Go ────────────────────────────────────────────────────────
   orchestrator:
     build:
-      context: .
-      dockerfile: Dockerfile.orchestrator
+      context: ..
+      dockerfile: config/Dockerfile.orchestrator
     container_name: local-agents-orchestrator
     ports:
       - "8081:8081"
@@ -36,11 +25,11 @@ services:
       ollama:
         condition: service_healthy
     volumes:
-      - ./config.docker.yaml:/root/config.yaml:ro
-      - ./web:/root/web:ro
-      - ./prompts:/root/prompts:ro
+      - ../config/config.docker.yaml:/root/config.yaml:ro
+      - ../web:/root/web:ro
+      - ../prompts:/root/prompts:ro
     env_file:
-      - .env
+      - ../.env
     environment:
       - OLLAMA_URL=http://ollama:11434
     restart: unless-stopped
@@ -51,11 +40,10 @@ services:
       retries: 3
       start_period: 5s
 
-  # ── Agents Python ───────────────────────────────────────────────────────────
   agents:
     build:
-      context: .
-      dockerfile: Dockerfile.agents
+      context: ..
+      dockerfile: config/Dockerfile.agents
     container_name: local-agents-python
     depends_on:
       ollama:
@@ -63,20 +51,20 @@ services:
       orchestrator:
         condition: service_healthy
     env_file:
-      - .env
+      - ../.env
     environment:
-      - OLLAMA_URL=http://ollama:11434/api/generate
+      - OLLAMA_URL=http://ollama:11434
       - ORCHESTRATOR_URL=http://orchestrator:8081
+      - OLLAMA_MODEL=llama3.2:latest
     volumes:
-      - ./agents:/app/agents:ro
-      - ./config.docker.yaml:/app/config.yaml:ro
+      - ../agents:/app/agents:ro
+      - ../config/config.docker.yaml:/app/config.yaml:ro
     restart: unless-stopped
 
-  # ── CyberDefence ────────────────────────────────────────────────────────────
   cyberdefence:
     build:
-      context: .
-      dockerfile: Dockerfile.agents
+      context: ..
+      dockerfile: config/Dockerfile.agents
     container_name: local-agents-cyberdefence
     command: ["python", "-m", "agents.cyberdefence.agent"]
     ports:
@@ -85,12 +73,12 @@ services:
       orchestrator:
         condition: service_healthy
     env_file:
-      - .env
+      - ../.env
     environment:
       - ORCHESTRATOR_URL=http://orchestrator:8081
     volumes:
-      - ./agents:/app/agents:ro
-      - ./config.docker.yaml:/app/config.yaml:ro
+      - ../agents:/app/agents:ro
+      - ../config/config.docker.yaml:/app/config.yaml:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8086/health"]

@@ -34,19 +34,26 @@
 
 ***
 
-## ✅ **TERMINÉ v1.0 → v4.0** 🟢 **Production Ready**
+## ✅ **TERMINÉ v1.0 → v4.2** 🟢 **Production Ready**
 
 | Feature | Statut | Détails |
 |---------|--------|---------|
 | **🟢 Orchestrateur Go** | ✅ | Routing + Queue + WebSocket + API REST + **5 workers** |
-| **🔥 6 Agents Live** | ✅ | `coder✨` `files` `email` `discord` `cyberdefence` |
+| **🔥 6 Agents Live** | ✅ | `coder` `files` `email` `discord` `cyberdefence` |
 | **🤖 Discord Jarvis** | ✅ | v3.0.0 GGUF+Ollama + commandes naturelles + modération |
-| **📸 Dashboard Web** | ✅ | `chatAgent.png` `cyberdefence.png` `parametres.png` `AlertDiscord.png` |
+| **📸 Dashboard Web** | ✅ | Chat + CyberDefence + Paramètres + modèles Ollama |
 | **🐳 Docker + Just** | ✅ | `just start/stop/restart` + 4 configs YAML |
+| **🛡️ CyberDefence v1.1.0** | ✅ | Prompt injection + SQL + anti-replay + alertes Discord |
+| **🔐 Tests sécurité validés** | ✅ | 5/5 tests passés — CRITICAL/WARNING Discord en temps réel |
+| **⚙️ Scripts install zero-to-hero** | ✅ | `install.ps1` Windows + `install.sh` Linux — 1 commande |
+| **🧹 Nettoyage scripts** | ✅ | `setup.sh` + `start_agents.sh` supprimés |
+| **📄 .env.example** | ✅ | GPU_ENABLED, GPU_TYPE, DISCORD_TOKEN standardisé |
+
 
 ***
 
-## 🔥 **PRIORITÉ #1 : BITNET + MOCK** `v4.1.0` **(3 jours)**
+## ✅ **TERMINÉ — BITNET + MOCK** `v4.1.0`
+
 
 ```
 📊 PERF COMPARÉ :
@@ -69,7 +76,8 @@ just prod             # 🔥 BitNet live
 
 ***
 
-## 🧠 **PRIORITÉ #2 : LoRA DYNAMIQUE** `v4.2.0` **(1 semaine)**
+## 🔥 **PRIORITÉ #1 : LoRA DYNAMIQUE** `v4.3.0` **(1 semaine)**
+
 
 ```
            BitNet 2B (1.2GB BASE)

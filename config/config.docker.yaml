@@ -28,13 +28,18 @@ queue:
   retry_delay: "1s"
 
 ollama:
+  ollama:
+    deploy:
+      resources:
+        limits:
+          memory: 4G
   base_url: "http://ollama:11434"
-  default_model: "llama3.2:3b"
+  default_model: "llama3.2:latest"   # ✅
   models:
-    coding:  "llama3.2:3b"
-    general: "llama3.2:3b"
-    fast:    "phi3:mini"
-    french:  "mistral:7b"
+    coding:  "qwen2.5-coder:1.5b"    # ✅ mieux pour le code
+    general: "llama3.2:latest"        # ✅
+    fast:    "smollm2:360m"           # ✅ ultra-rapide
+    french:  "mistral:7b-instruct-q4_0"  # ✅ nom exact
   defaults:
     temperature: 0.7
     max_tokens: 1024
@@ -140,6 +145,7 @@ agents:
 
   discord:
     enabled: true
+    monitor: false
     name: "Discord"
     description: "Bot Discord Jarvis"
     icon: "message-circle"

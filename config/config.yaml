@@ -6,9 +6,11 @@
 # Les variables d'environnement sont supportées : ${VAR:-default}
 # =============================================================================
 
+
 # -----------------------------------------------------------------------------
 # Serveur
 # -----------------------------------------------------------------------------
+
 
 server:
   host: "0.0.0.0"
@@ -21,13 +23,15 @@ server:
       - "http://localhost:*"
       - "http://127.0.0.1:*"
 
+
 # -----------------------------------------------------------------------------
 # Logging
 # -----------------------------------------------------------------------------
 
+
 logging:
-  level: "${LOG_LEVEL:-info}"   # debug | info | warn | error
-  format: "json"                # json | text
+  level: "${LOG_LEVEL:-info}"
+  format: "json"
   file: "logs/agents.log"
 
   fields:
@@ -38,40 +42,45 @@ logging:
     - duration_ms
     - status
 
+
 # -----------------------------------------------------------------------------
 # Queue de tâches
 # -----------------------------------------------------------------------------
 
+
 queue:
-  type: "memory"        # memory | redis
+  type: "memory"
   max_concurrent: 5
   task_timeout: "5m"
   retry_attempts: 3
   retry_delay: "1s"
 
+
 # -----------------------------------------------------------------------------
 # Modèles Ollama
 # -----------------------------------------------------------------------------
 
+
 ollama:
   base_url: "http://localhost:11434"
-  default_model: "llama3.2:3b"
+  default_model: "llama3.2:latest"
 
-  # Alias de modèles utilisés dans les agents
   models:
-    coding:  "llama3.2:3b"   # Génération de code
-    general: "llama3.2:3b"   # Usage général
-    fast:    "phi3:mini"     # Réponses rapides (modération, Discord)
-    french:  "mistral:7b"    # Meilleur pour le français
+    coding:  "qwen2.5-coder:1.5b"
+    general: "llama3.2:latest"
+    fast:    "smollm2:360m"
+    french:  "mistral:7b-instruct-q4_0"
 
   defaults:
     temperature: 0.7
     max_tokens: 1024
     timeout_ms: 60000
 
+
 # -----------------------------------------------------------------------------
 # Agents
 # -----------------------------------------------------------------------------
+
 
 agents:
 
@@ -79,21 +88,20 @@ agents:
   cyberdefence:
     prompt_file: "prompts/cyberdefence.md"
     enabled: true
+    monitor: false
     name: "CyberDefence"
-    description: "Surveillance et sécurité du framework (monitoring, rate limiting, injection)"
+    description: "Surveillance et sécurité du framework"
     icon: "🛡️"
     port: 8086
     type: "external"
     endpoint: "http://localhost:8086"
-
-    # Pas de LLM - logique déterministe uniquement
     model: null
 
     config:
-      check_interval: 15      # secondes entre chaque scan des agents
-      max_req_per_min: 30     # rate limit par user/IP
-      replay_ttl_sec: 300     # TTL anti-replay (5 min)
-      auto_block: false       # blocage automatique après N échecs (fail2ban)
+      check_interval: 15
+      max_req_per_min: 30
+      replay_ttl_sec: 300
+      auto_block: false
       auto_block_threshold: 5
 
     capabilities:
@@ -106,6 +114,7 @@ agents:
   # ── Coder ─────────────────────────────────────────────────────────────────
   coder:
     enabled: true
+    monitor: true
     name: "Coder"
     description: "Génération et analyse de code"
     icon: "💻"
@@ -121,7 +130,7 @@ agents:
     config:
       temperature: 0.3
       max_tokens: 2048
-      timeout_ms: 120000      # 2 min pour génération longue
+      timeout_ms: 120000
 
     capabilities:
       - code_generation
@@ -132,6 +141,7 @@ agents:
   # ── Files ─────────────────────────────────────────────────────────────────
   files:
     enabled: true
+    monitor: true
     name: "Files"
     description: "Gestion de fichiers et dossiers"
     icon: "📁"
@@ -166,6 +176,7 @@ agents:
   # ── Email ─────────────────────────────────────────────────────────────────
   email:
     enabled: true
+    monitor: true
     name: "Email"
     description: "Envoi et gestion d'emails"
     icon: "✉️"
@@ -192,7 +203,8 @@ agents:
 
   # ── Social ────────────────────────────────────────────────────────────────
   social:
-    enabled: false            # Désactivé par défaut
+    enabled: false
+    monitor: false
     name: "Social"
     description: "Publication sur réseaux sociaux"
     icon: "🐦"
@@ -215,6 +227,7 @@ agents:
   # ── Discord ───────────────────────────────────────────────────────────────
   discord:
     enabled: true
+    monitor: false
     name: "Discord"
     description: "Bot Discord Jarvis"
     icon: "🎮"
@@ -247,12 +260,14 @@ agents:
         model: "fast"
         temperature: 0.2
 
+
 # -----------------------------------------------------------------------------
 # Agents custom (exemples commentés)
 # -----------------------------------------------------------------------------
 
   # translator:
   #   enabled: false
+  #   monitor: false
   #   name: "Translator"
   #   description: "Traduction multilingue"
   #   icon: "🌍"
@@ -268,10 +283,11 @@ agents:
 
   # researcher:
   #   enabled: false
+  #   monitor: false
   #   name: "Researcher"
   #   description: "Recherche et synthèse d'informations"
   #   icon: "🔍"
-  #   model: "llama3.2:3b"
+  #   model: "llama3.2:latest"
   #   prompt_file: "researcher.md"
   #   tools:
   #     - web_search
@@ -284,9 +300,11 @@ agents:
   #     - summarize
   #     - fact_check
 
+
 # -----------------------------------------------------------------------------
 # Outils
 # -----------------------------------------------------------------------------
+
 
 tools:
   filesystem:
@@ -328,14 +346,8 @@ tools:
     description: "Publication sur LinkedIn"
     handler: "internal/tools/linkedin.go"
 
-  # web_search:
-  #   name: "Web Search"
-  #   description: "Recherche via DuckDuckGo"
-  #   handler: "internal/tools/websearch.go"
-  #   config:
-  #     max_results: 10
-  #     safe_search: true
-# BitNet (ajouté par bitnet-install)
+
+# BitNet
 bitnet:
   model_id: "microsoft/bitnet-b1.58-2B-4T"
   model_path: "~/.local-agents/models/bitnet/model"

@@ -1,124 +1,108 @@
+```markdown
 # Installation — Local Agents
 
 ---
 
-## Windows (Docker — recommandé)
+## ⚡ Installation en une commande
 
-**Prérequis : Docker Desktop**  
-Télécharger et installer depuis https://docker.com/products/docker-desktop
+### 🪟 Windows (PowerShell Admin)
 
 ```powershell
-git clone https://github.com/loic31000/local-agents.git
-cd local-agents
-copy .env.example .env
-docker compose up -d
-docker compose exec ollama ollama pull llama3.2:3b
+irm https://raw.githubusercontent.com/loic31000/local-agents/main/scripts/install.ps1 | iex
 ```
 
-Ouvrir http://localhost:8081 — c'est tout.
+> Lance PowerShell en **administrateur**, colle la commande, c'est tout.  
+> Docker Desktop, Go, Python, Just, Ollama — tout est installé automatiquement.
 
-> Première fois que Docker télécharge les images : ~5 minutes.  
-> Le modèle llama3.2:3b : ~2GB à télécharger une seule fois.
+### 🐧 Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/loic31000/local-agents/main/scripts/install.sh | bash
+```
+
+> Compatible Ubuntu, Debian, Fedora, Arch.  
+> GPU NVIDIA/AMD détecté automatiquement.
 
 ---
 
-## Linux / macOS (Docker)
+## Ce que fait le script automatiquement
 
-```bash
-git clone https://github.com/loic31000/local-agents.git
-cd local-agents
-cp .env.example .env
-docker compose up -d
-docker compose exec ollama ollama pull llama3.2:3b
-```
-
-Ouvrir http://localhost:8081
+| Étape | Windows | Linux |
+|-------|---------|-------|
+| Gestionnaire paquets | winget / Chocolatey | apt / dnf / pacman |
+| Git | ✅ | ✅ |
+| Docker | Docker Desktop | Docker Engine |
+| Go 1.22+ | ✅ | ✅ |
+| Python 3.10+ | ✅ | ✅ |
+| Just | ✅ | ✅ |
+| Ollama | ✅ | ✅ |
+| Clone repo | ✅ | ✅ |
+| Config `.env` | prompt interactif | prompt interactif |
+| Détection GPU | Win32_VideoController | nvidia-smi / rocm-smi |
+| Pull modèle | llama3.2:latest | llama3.2:latest |
+| Ouvre dashboard | http://localhost:8081 | http://localhost:8081 |
 
 ---
 
-## Sans Docker (Linux / macOS)
+## Configuration `.env`
 
-Pour ceux qui préfèrent lancer directement sans Docker.
-
-**Prérequis :** Go 1.22+, Python 3.10+, Ollama
+Le script crée `.env` automatiquement depuis `.env.example`.  
+Seuls ces deux tokens sont demandés à l'install :
 
 ```bash
-# Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.2:3b
+# Bot Discord Jarvis (optionnel)
+DISCORD_TOKEN=
 
-# Projet
+# Alertes CyberDefence sur Discord (optionnel)
+CYBERDEFENCE_DISCORD_WEBHOOK=
+```
+
+Pour configurer manuellement après l'install :
+```bash
+nano ~/.local/local-agents/.env       # Linux
+notepad $env:USERPROFILE\local-agents\.env  # Windows
+```
+
+---
+
+## Commandes post-install
+
+```bash
+just status           # état des services
+just logs             # logs en direct
+just test-api         # tests API
+just security-status  # état CyberDefence
+just chat coder "bonjour"  # test agent
+```
+
+---
+
+## Sans Docker (Linux / macOS avancé)
+
+```bash
+# Prérequis : Go 1.22+, Python 3.10+, Ollama
+ollama pull llama3.2:latest
+
 git clone https://github.com/loic31000/local-agents.git
 cd local-agents
 cp .env.example .env
 
-# Dépendances
-python3 -m venv venv && source venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 go build -o bin/orchestrator ./cmd/orchestrator
 
-# Lancer
 ./bin/orchestrator &
-set -a && source .env && set +a
 python -m agents.cyberdefence.agent
 ```
 
 ---
 
-## Configuration .env
-
-Seuls ces deux tokens sont nécessaires pour les fonctions avancées.  
-Le projet fonctionne sans eux pour le chat de base.
+## Vérification manuelle
 
 ```bash
-# Alertes Discord depuis CyberDefence (optionnel)
-CYBERDEFENCE_DISCORD_WEBHOOK=https://discord.com/api/webhooks/...
-
-# Bot Discord Jarvis (optionnel)
-DISCORD_TOKEN=your_token_here
-```
-
----
-
-## Migration VM Linux → Windows
-
-Tu as déjà le projet qui tourne sur une VM Linux.  
-Sur le Windows cible :
-
-```powershell
-# 1. Installer Docker Desktop
-# 2. Cloner la bonne branche
-git clone https://github.com/loic31000/local-agents.git
-cd local-agents
-git checkout 2-suite-de-la-roadmap-bitnet-mock-v410
-
-# 3. Copier tes tokens depuis .env de la VM
-copy .env.example .env
-# Éditer .env et coller DISCORD_TOKEN + CYBERDEFENCE_DISCORD_WEBHOOK
-
-# 4. Lancer
-docker compose up -d
-docker compose exec ollama ollama pull llama3.2:3b
-```
-
-Les modèles Ollama ne se transfèrent pas — il faut les retélécharger.  
-Tout le reste (code, config, agents) est dans le repo Git.
-
----
-
-## Vérification
-
-```bash
-# Santé de l'orchestrateur
-curl http://localhost:8081/api/health
-
-# Test sans LLM (Mock Layer — réponse instantanée)
-just mock-on
-just chat coder "bonjour"
-just ollama-on
-
-# État CyberDefence
-curl http://localhost:8086/health
+curl http://localhost:8081/api/health    # orchestrateur
+curl http://localhost:8086/health        # CyberDefence
+curl http://localhost:11434/api/tags     # Ollama
 ```
 
 ---
@@ -131,26 +115,21 @@ just check-port 8081
 just kill-port 8081
 ```
 
-**CyberDefence ne démarre pas**
-```bash
-# Le .env doit être chargé manuellement hors Docker
-set -a && source .env && set +a
-python -m agents.cyberdefence.agent
-# ou simplement :
-just cyberdefence
-```
+**Docker Desktop ne démarre pas (Windows)**  
+Lance Docker Desktop manuellement, attends qu'il soit prêt, puis relance `install.ps1`.
 
 **Espace disque insuffisant**
 ```bash
-ollama rm phi3:mini        # libère 2.2GB
 ollama rm tinyllama:1.1b   # libère 0.6GB
-just clean
+just clean                 # nettoie Docker
 ```
 
-**Windows — variables d'environnement**
-```powershell
-# PowerShell ne charge pas .env automatiquement
-# Utiliser Docker Compose qui le charge via env_file
-# ou définir manuellement :
-$env:CYBERDEFENCE_DISCORD_WEBHOOK="https://discord.com/api/webhooks/..."
+**GPU non détecté**  
+Vérifie dans `.env` :
+```bash
+GPU_ENABLED=true
+GPU_TYPE=nvidia   # ou amd
 ```
+```
+
+***

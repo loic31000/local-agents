@@ -95,7 +95,7 @@ bot.session = None
 
 MODES = {
     "discussion": {
-        "ollama_model": "llama3.2:3b",
+        "ollama_model": OLLAMA_MODEL,
         "gguf_model": "mistral-7b-instruct-v0.2.Q4_K_M",
         "temperature": 0.7,
         "prompt": """Tu es Jarvis, un assistant Discord sympathique et serviable.
@@ -938,32 +938,36 @@ async def model(ctx, new_model: str = None):
 async def models(ctx):
     """Liste tous les modèles disponibles."""
     e = discord.Embed(title="📦 Modèles disponibles", color=0x5865F2)
-    
+
     # Ollama
     ollama_models = await list_ollama_models()
     if ollama_models:
         e.add_field(
             name="📡 Ollama",
-            value="\n".join([f"• `{m}`" for m in ollama_models[:8]]),
+            value="\n".join([f"• `!model {m}`" for m in ollama_models[:8]]),
             inline=True
         )
-    
+
     # GGUF
     if gguf_available:
         gguf_models = list_gguf_models()
         if gguf_models:
             e.add_field(
                 name="🎮 GGUF (GPU)",
-                value="\n".join([f"• `{m}`" for m in gguf_models[:8]]),
+                value="\n".join([f"• `!model {m}`" for m in gguf_models[:8]]),
                 inline=True
             )
-    
+
     current_backend = get_backend(ctx.guild.id)
     current_model = get_model(ctx.guild.id)
+    e.add_field(
+        name="💡 Utilisation",
+        value="`!model <nom>` pour changer\nEx: `!model smollm2:360m`",
+        inline=False
+    )
     e.set_footer(text=f"Actuel: {current_model} ({current_backend})")
-    
-    await ctx.send(embed=e)
 
+    await ctx.send(embed=e)
 
 @bot.command()
 async def gpu(ctx):

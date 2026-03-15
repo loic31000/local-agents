@@ -52,7 +52,14 @@ def load_config() -> dict:
                 if orchestrator_host == "0.0.0.0":
                     orchestrator_host = "localhost"
                 merged = {**defaults, **cyber}
-                merged["orchestrator_url"] = f"http://{orchestrator_host}:{orchestrator_port}"
+                
+                # On donne la priorité à la variable d'environnement si elle existe
+                env_url = os.getenv("ORCHESTRATOR_URL")
+                if env_url:
+                    merged["orchestrator_url"] = env_url
+                else:
+                    merged["orchestrator_url"] = f"http://{orchestrator_host}:{orchestrator_port}"
+                    
                 merged["agent_port"] = (
                     raw.get("agents", {})
                        .get("cyberdefence", {})
@@ -61,14 +68,14 @@ def load_config() -> dict:
                 # Agents à surveiller (tous sauf cyberdefence lui-même)
                 merged["watched_agents"] = [
                     k for k, v in raw.get("agents", {}).items()
-                    if k != "cyberdefence" and v.get("enabled", True)
+                    if k != "cyberdefence" and v.get("enabled", True) and v.get("monitor", True)
                 ]
                 logger.info(f"Config chargée depuis {path}")
                 return merged
             except Exception as e:
                 logger.error(f"Erreur lecture config : {e}")
     logger.info("Config par défaut utilisée (config.yaml introuvable)")
-    defaults["orchestrator_url"] = "http://localhost:8080"
+    defaults["orchestrator_url"] = os.getenv("ORCHESTRATOR_URL", "http://localhost:8080")
     defaults["agent_port"] = 8086
     defaults["watched_agents"] = ["coder", "files", "email", "social", "discord"]
     return defaults

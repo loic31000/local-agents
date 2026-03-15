@@ -41,18 +41,38 @@
 
 ## Sommaire
 
-- [Fonctionnalités](#fonctionnalités)
-- [Démarrage rapide](#démarrage-rapide)
-- [Architecture](#architecture)
-- [Agents](#agents)
-- [CyberDefence](#cyberdefence)
-- [Dashboard Web](#dashboard-web)
-- [Configuration](#configuration)
-- [Profils prédéfinis](#profils-prédéfinis)
-- [GPU](#gpu)
-- [Docker](#docker)
-- [Développement](#développement)
-- [Comparaison](#comparaison)
+- [🤖 Local Agents](#-local-agents)
+  - [Sommaire](#sommaire)
+  - [Fonctionnalités](#fonctionnalités)
+  - [Démarrage rapide](#démarrage-rapide)
+    - [🐳 Docker — Linux et Windows (recommandé)](#-docker--linux-et-windows-recommandé)
+    - [🐧 Local — Linux / macOS](#-local--linux--macos)
+    - [⚡ Commandes Justfile](#-commandes-justfile)
+  - [Architecture](#architecture)
+  - [Agents](#agents)
+    - [💻 Coder](#-coder)
+    - [📁 Files](#-files)
+    - [✉️ Email](#️-email)
+    - [🐦 Social](#-social)
+    - [🎮 Discord — Jarvis](#-discord--jarvis)
+  - [CyberDefence](#cyberdefence)
+    - [Protections actives](#protections-actives)
+    - [API CyberDefence — port 8086](#api-cyberdefence--port-8086)
+    - [Configuration](#configuration)
+    - [Lancer CyberDefence](#lancer-cyberdefence)
+  - [Dashboard Web](#dashboard-web)
+  - [Configuration](#configuration-1)
+  - [Profils prédéfinis](#profils-prédéfinis)
+  - [GPU](#gpu)
+    - [🟢 NVIDIA (CUDA)](#-nvidia-cuda)
+    - [🔴 AMD (ROCm)](#-amd-rocm)
+    - [🍎 Apple Silicon](#-apple-silicon)
+  - [Docker](#docker)
+  - [Développement](#développement)
+    - [Ajouter un agent Python](#ajouter-un-agent-python)
+    - [Tests](#tests)
+    - [Logs structurés](#logs-structurés)
+  - [Comparaison](#comparaison)
 
 ---
 
@@ -195,6 +215,8 @@ Agent de surveillance sans LLM — logique déterministe uniquement.
 Tourne en parallèle de tous les autres agents et surveille l'ensemble du framework en temps réel.
 
 ![CyberDefence Dashboard](docs/screenshots/cyberdefence.png)
+![Multiple Attacks](docs/screenshots/multiple-attack.png)
+
 
 ### Protections actives
 
