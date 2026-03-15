@@ -1,5 +1,3 @@
-Voici le fichier complet — copie-colle directement dans `ROADMAP.md` :
-
 ```markdown
 # 📋 ROADMAP — Local Agents v4.5.0 "Lightning Framework" 🚀
 
@@ -94,6 +92,41 @@ lora:
 
 ---
 
+## 🤝 Inspiration CoPaw — v4.4.0 *(À réfléchir)*
+
+**Benchmark CoPaw (AgentScope/Alibaba)** : multi-canaux + ReMe mémoire. À évaluer pour différenciation.
+
+| Feature CoPaw | Intérêt | Statut | Complexité |
+|---------------|---------|--------|------------|
+| **ReMe Memory** | ✅ Haute | ⏳ Plan | 🟡 Moyen |
+| **Multi-canaux** | ⚠️ Moyen | 📋 TODO | 🟠 Difficile |
+| **MCP Tools** | ✅ Haute | 📋 TODO | 🟢 Facile |
+
+### 🎯 1️⃣ ReMe Memory Store *(v4.4.1)*
+```
+- SQLite/JSON par agent — cross-session
+- `memory/agent_coder/conversations.db`
+- Récupération contexte 30j max
+```
+**Impact** : Garde l'historique Discord même après `docker compose down`
+
+### 🎯 2️⃣ MCP Endpoint *(v4.4.2)*
+```
+POST /api/mcp/{tool}
+- Standardise outils externes (VSCode, Git, terminal)
+- Compatible AgentScope ecosystem
+```
+**Impact** : Marketplace compatible 2027
+
+### 🎯 3️⃣ Telegram Bot *(Optionnel v4.5.0)*
+```
+@JarvisTelegram parallèle à Discord
+- 2ème canal Jarvis
+```
+**Impact** : +20% utilisateurs (Telegram > Discord dev FR)
+
+---
+
 ## 🛠️ Plan v4.5.0 *(4 semaines)*
 
 | Semaine | Objectif | Statut |
@@ -101,7 +134,7 @@ lora:
 | 1 | Mock Layer + tests instantanés | ✅ |
 | 2 | LoRA Router — 10 agents spécialisés | 🔥 En cours |
 | 3 | Observer Bus + CyberDef étendu | ⏳ |
-| 4 | Release v4.5.0 "Lightning Framework" | ⏳ |
+| 4 | **Release v4.5.0 "Lightning Framework"** | ⏳ |
 
 ---
 
@@ -130,26 +163,21 @@ just marketplace list             # Voir tous les LoRA disponibles
 | ✅ v4.0 | 6 | Ollama | Discord + Web |
 | ✅ v4.2 | 6 | Mock 52x | CyberDef + Scripts |
 | 🔥 v4.5 | 10+ | LoRA auto | LoRA + Observer |
-| ⭐ 2027 | 50+ | LoRA + Marketplace | Crypto + Pentest |
+| ⭐ 2027 | 50+ | **ReMe + MCP** | Marketplace + Multi-canaux |
 
 ---
 
 ## 🎯 Prochaines étapes *(7 jours)*
 
-1. `just mock-on` — tests 0.5s ✅
-2. LoRA Router v4.3.0 — 10 agents spécialisés
-3. Observer Bus — 100% observabilité
-4. `git push v4.5.0` — release GitHub
+1. ✅ `just mock-on` — tests 0.5s
+2. 🔥 **LoRA Router v4.3.0** — 10 agents spécialisés
+3. 👁️ **Observer Bus** — 100% observabilité
+4. 🤝 **ReMe Memory** (CoPaw) — évaluer v4.4.1
+5. `git push v4.5.0` — release GitHub
 
 ---
 
 ⭐ [github.com/loic31000/local-agents](https://github.com/loic31000/local-agents) — Local Agents · Framework IA Local #1 (2026–2027)
-```
 
-Puis :
 
-```powershell
-git add ROADMAP.md
-git commit -m "docs: ROADMAP propre — tableaux Markdown natifs, zéro ASCII art"
-git push
-```
+**Local Agents > CoPaw** sur sécurité + simplicité, mais **ReMe + MCP** = killer features 2027 ! 🎯
