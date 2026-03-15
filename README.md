@@ -215,8 +215,10 @@ Agent de surveillance sans LLM — logique déterministe uniquement.
 Tourne en parallèle de tous les autres agents et surveille l'ensemble du framework en temps réel.
 
 ![CyberDefence Dashboard](docs/screenshots/cyberdefence.png)
+
 ![Multiple Attacks](docs/screenshots/multiple-attack.png)
 
+![Alerte Discord](docs/screenshots/AlertDiscord.png)
 
 ### Protections actives
 
@@ -230,7 +232,6 @@ Tourne en parallèle de tous les autres agents et surveille l'ensemble du framew
 | 🔔 Alertes Discord | Embed coloré sur chaque événement CRITICAL et WARNING |
 | 📊 Export | Journal exportable CSV / JSON via `GET /events?format=csv` |
 
-![Alerte Discord](docs/screenshots/AlertDiscord.png)
 
 ### API CyberDefence — port 8086
 
