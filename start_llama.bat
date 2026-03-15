@@ -62,7 +62,7 @@ echo  Attends "llama server listening" puis lance run_agent.bat
 echo  Ctrl+C pour arreter
 echo.
 
-llama-server.exe --model "%MODEL_FILE%" --port 8081 --host 127.0.0.1 --n-gpu-layers %GPU_LAYERS% --ctx-size %CTX_SIZE% --parallel 1 --threads %THREADS%
+llama-server.exe --model "%MODEL_FILE%" --port 8081 --host 127.0.0.1 --n-gpu-layers %GPU_LAYERS% --ctx-size %CTX_SIZE% --parallel 1 --threads %THREADS% --metrics
 
 echo.
 echo [!] llama-server s'est arrete.

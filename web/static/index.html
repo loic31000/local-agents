@@ -1,988 +1,781 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Local Agents - Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        :root {
-            --bg-primary: #0f0f0f;
-            --bg-secondary: #1a1a1a;
-            --bg-tertiary: #252525;
-            --text-primary: #ffffff;
-            --text-secondary: #a0a0a0;
-            --accent: #6366f1;
-            --accent-hover: #818cf8;
-            --success: #22c55e;
-            --warning: #f59e0b;
-            --error: #ef4444;
-        }
-        
-        body {
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-family: 'Inter', system-ui, sans-serif;
-        }
-        
-        .glass {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .message-user {
-            background: var(--accent);
-        }
-        
-        .message-assistant {
-            background: var(--bg-tertiary);
-        }
-        
-        .typing-indicator span {
-            animation: typing 1.4s infinite;
-        }
-        
-        .typing-indicator span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-        
-        .typing-indicator span:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-        
-        @keyframes typing {
-            0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-            30% { opacity: 1; transform: translateY(-4px); }
-        }
-        
-        .agent-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.3);
-        }
-        
-        pre code {
-            display: block;
-            padding: 1rem;
-            background: #1e1e1e;
-            border-radius: 0.5rem;
-            overflow-x: auto;
-        }
-        
-        .scrollbar-thin::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .scrollbar-thin::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        
-        .scrollbar-thin::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 50;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .progress-bar {
-            transition: width 0.3s ease;
-        }
-
-        .tab-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local Agents</title>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+:root{--accent:#6366f1;--bg:#080b14;--bg2:#0d1117;--bg3:#161b27;--border:rgba(255,255,255,0.07);--text:#e2e8f0;--muted:#64748b;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--blue:#3b82f6}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;font-size:14px}
+.mono{font-family:'JetBrains Mono',monospace}
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:10px}
+.badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;letter-spacing:.04em;white-space:nowrap}
+.badge-green{background:rgba(34,197,94,.15);color:#4ade80}.badge-amber{background:rgba(245,158,11,.15);color:#fbbf24}
+.badge-red{background:rgba(239,68,68,.15);color:#f87171}.badge-blue{background:rgba(59,130,246,.15);color:#60a5fa}
+.badge-gray{background:rgba(100,116,139,.15);color:#94a3b8}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dot-green{background:var(--green);box-shadow:0 0 6px rgba(34,197,94,.6)}
+.dot-amber{background:var(--amber);box-shadow:0 0 6px rgba(245,158,11,.5)}
+.dot-red{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,.5)}
+.dot-gray{background:var(--muted)}
+.tab-btn{padding:7px 14px;border-radius:7px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border:1px solid transparent;background:none;transition:all .15s}
+.tab-btn:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.tab-btn.active{color:var(--text);background:rgba(99,102,241,.2);border-color:rgba(99,102,241,.4)}
+.agent-btn{width:100%;padding:10px 12px;border-radius:8px;border:1px solid transparent;background:none;text-align:left;cursor:pointer;transition:all .15s;color:var(--text)}
+.agent-btn:hover{background:rgba(255,255,255,.04);border-color:var(--border)}
+.agent-btn.active{background:rgba(99,102,241,.12);border-color:rgba(99,102,241,.35)}
+.inp{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;width:100%;outline:none;transition:border-color .15s}
+.inp:focus{border-color:rgba(99,102,241,.5)}
+.btn-p{background:var(--accent);color:white;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;white-space:nowrap}
+.btn-p:hover{background:#5254cc}.btn-p:disabled{opacity:.5;cursor:not-allowed}
+.btn-s{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s}
+.btn-s:hover{background:rgba(255,255,255,.08);color:var(--text)}
+select{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;cursor:pointer}
+select:focus{border-color:rgba(99,102,241,.5)}
+.msg-wrap{margin-bottom:12px;animation:fu .2s ease}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.msg-user{display:flex;justify-content:flex-end}
+.msg-ai{display:flex;gap:8px;align-items:flex-start}
+.avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.bu{background:rgba(99,102,241,.18);border:1px solid rgba(99,102,241,.25);border-radius:12px 12px 3px 12px;padding:10px 14px;max-width:78%;font-size:13px;line-height:1.6;word-break:break-word}
+.ba{background:var(--bg3);border:1px solid var(--border);border-radius:12px 12px 12px 3px;padding:10px 14px;max-width:78%;font-size:13px;line-height:1.6;word-break:break-word}
+.thinking{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px 12px 12px 3px}
+.tdots{display:flex;gap:4px;align-items:center}
+.tdot{width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.3}
+.tdot:nth-child(1){animation:th .9s ease-in-out infinite}
+.tdot:nth-child(2){animation:th .9s ease-in-out .2s infinite}
+.tdot:nth-child(3){animation:th .9s ease-in-out .4s infinite}
+@keyframes th{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
+.tlabel{font-size:11px;color:var(--muted);font-style:italic}
+.event-row{border-left:2px solid var(--border);padding:6px 0 6px 12px;margin-bottom:4px;position:relative;animation:fu .15s ease}
+.event-row::before{content:'';position:absolute;left:-5px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%}
+.ev-critical{border-color:rgba(239,68,68,.4)}.ev-critical::before{background:var(--red)}
+.ev-warning{border-color:rgba(245,158,11,.4)}.ev-warning::before{background:var(--amber)}
+.ev-info{border-color:rgba(59,130,246,.3)}.ev-info::before{background:var(--blue)}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;transition:border-color .2s}
+.stat-card:hover{border-color:rgba(255,255,255,.12)}
+.model-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.2);font-size:11px;color:#a5b4fc;cursor:pointer;transition:all .15s}
+.model-chip:hover{background:rgba(99,102,241,.18)}
+.model-card{border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .2s;background:var(--bg2);position:relative;overflow:hidden}
+.model-card:hover{border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.05)}
+.model-card.active{border-color:rgba(99,102,241,.6);background:rgba(99,102,241,.1)}
+.model-card.active::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#6366f1,#8b5cf6)}
+.model-vram{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(99,102,241,.15);color:#a5b4fc;font-family:'JetBrains Mono',monospace}
+.speed-bar{height:3px;border-radius:2px;background:var(--bg3);margin-top:6px}
+.speed-fill{height:3px;border-radius:2px;transition:width .5s ease}
+/* STATS BARS */
+.stat-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden;margin-top:3px}
+.stat-bar-fill{height:4px;border-radius:2px;transition:width .8s ease}
+.tps-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:4px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);font-size:11px;color:#4ade80;font-family:'JetBrains Mono',monospace}
+@keyframes spin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+#toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:8px;font-size:13px;z-index:200;background:var(--bg3);border:1px solid var(--border);display:none;animation:fu .2s ease}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:100}
+.modal-box{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:20px;width:420px;animation:fu .2s ease}
+</style>
 </head>
-<body class="min-h-screen">
-    <div id="app" class="flex h-screen">
-        <!-- Sidebar -->
-        <aside class="w-64 bg-[#1a1a1a] border-r border-white/10 flex flex-col">
-            <!-- Logo -->
-            <div class="p-4 border-b border-white/10">
-                <h1 class="text-xl font-bold flex items-center gap-2">
-                    <i data-lucide="bot" class="w-6 h-6 text-indigo-500"></i>
-                    Local Agents
-                </h1>
-                <p class="text-xs text-gray-500 mt-1">100% Local avec Ollama</p>
-            </div>
+<body>
 
-            <!-- Tabs -->
-            <div class="flex border-b border-white/10">
-                <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn active flex-1 py-2 text-sm font-medium transition">
-                    💬 Chat
-                </button>
-                <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn flex-1 py-2 text-sm font-medium transition hover:bg-white/5">
-                    ⚙️ Config
-                </button>
-            </div>
-            
-            <!-- Agents List (Chat Tab) -->
-            <div id="panel-chat" class="flex-1 overflow-y-auto p-4 scrollbar-thin">
-                <h2 class="text-xs font-semibold text-gray-500 uppercase mb-3">Agents</h2>
-                <div id="agents-list" class="space-y-2">
-                    <!-- Agents loaded dynamically -->
-                </div>
-            </div>
+<!-- HEADER -->
+<div style="border-bottom:1px solid var(--border);background:rgba(8,11,20,.92);backdrop-filter:blur(14px);position:sticky;top:0;z-index:50">
+  <div style="max-width:1240px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:52px">
+    <div style="display:flex;align-items:center;gap:20px">
+      <span style="font-weight:600;font-size:15px;letter-spacing:-.01em">Local Agents</span>
+      <div style="display:flex;align-items:center;gap:5px;font-size:12px">
+        <span class="dot" id="ws-dot" style="background:var(--muted)"></span>
+        <span id="ws-label" style="color:var(--muted)">Connexion...</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:12px">
+        <span class="dot" id="llm-dot" style="background:var(--muted)"></span>
+        <span id="llm-label" style="color:var(--muted)">LLM...</span>
+      </div>
+      <!-- TOKENS/SEC dans le header -->
+      <div id="tps-header" style="display:none;align-items:center;gap:4px">
+        <span class="tps-chip"><span id="tps-val">—</span> t/s</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <!-- GPU mini chip dans le header -->
+      <div id="gpu-header" style="display:none;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+        <i data-lucide="zap" style="width:10px;height:10px;color:#a78bfa"></i>
+        <span id="gpu-header-txt">GPU —</span>
+        <span style="color:var(--border)">·</span>
+        <span id="temp-header-txt">—°C</span>
+      </div>
+      <span style="color:var(--border)">·</span>
+      <span id="hdr-agent" style="font-size:12px;color:var(--muted)">Aucun agent</span>
+      <span style="color:var(--border)">·</span>
+      <div class="model-chip" onclick="openModelSwitcher()" title="Changer de modèle">
+        <i data-lucide="cpu" style="width:10px;height:10px"></i>
+        <span id="hdr-model">—</span>
+        <i data-lucide="chevron-down" style="width:9px;height:9px;opacity:.6"></i>
+      </div>
+    </div>
+  </div>
+</div>
 
-            <!-- Settings Panel -->
-            <div id="panel-settings" class="flex-1 overflow-y-auto p-4 scrollbar-thin hidden">
-                <h2 class="text-xs font-semibold text-gray-500 uppercase mb-3">Modèles Ollama</h2>
-                <div id="models-list" class="space-y-2 mb-4">
-                    <!-- Models loaded dynamically -->
-                </div>
-                
-                <button onclick="openModelDownload()" class="w-full py-2 px-3 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
-                    <i data-lucide="download" class="w-4 h-4"></i>
-                    Télécharger un modèle
-                </button>
-
-                <h2 class="text-xs font-semibold text-gray-500 uppercase mb-3 mt-6">Modèles populaires</h2>
-                <div class="space-y-2 text-sm">
-                    <button onclick="downloadModel('qwen2:1.5b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
-                        <div class="font-medium">qwen2:1.5b</div>
-                        <div class="text-xs text-gray-500">~1 GB • Rapide sur CPU</div>
-                    </button>
-                    <button onclick="downloadModel('llama3.2:3b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
-                        <div class="font-medium">llama3.2:3b</div>
-                        <div class="text-xs text-gray-500">~2 GB • Équilibré</div>
-                    </button>
-                    <button onclick="downloadModel('deepseek-coder:6.7b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
-                        <div class="font-medium">deepseek-coder:6.7b</div>
-                        <div class="text-xs text-gray-500">~4 GB • Spécialisé code</div>
-                    </button>
-                    <button onclick="downloadModel('llama3.1:8b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
-                        <div class="font-medium">llama3.1:8b</div>
-                        <div class="text-xs text-gray-500">~4.7 GB • Polyvalent</div>
-                    </button>
-                    <button onclick="downloadModel('mistral:7b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
-                        <div class="font-medium">mistral:7b</div>
-                        <div class="text-xs text-gray-500">~4 GB • Haute qualité</div>
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Status -->
-            <div class="p-4 border-t border-white/10">
-                <div id="status" class="flex items-center gap-2 text-sm">
-                    <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
-                    <span class="text-gray-400">Connexion...</span>
-                </div>
-                <div id="ollama-status" class="flex items-center gap-2 text-sm mt-2">
-                    <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
-                    <span class="text-gray-400">Ollama: vérification...</span>
-                </div>
-            </div>
-        </aside>
-        
-        <!-- Main Content -->
-        <main class="flex-1 flex flex-col">
-            <!-- Header -->
-            <header class="h-14 border-b border-white/10 flex items-center justify-between px-6">
-                <div class="flex items-center gap-3">
-                    <div id="current-agent-icon" class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-                        <i data-lucide="code-2" class="w-4 h-4 text-indigo-400"></i>
-                    </div>
-                    <div>
-                        <h2 id="current-agent-name" class="font-semibold">Agent Codeur</h2>
-                        <div class="flex items-center gap-2">
-                            <p id="current-agent-model" class="text-xs text-gray-500">qwen2:1.5b</p>
-                            <button onclick="openModelSelector()" class="text-xs text-indigo-400 hover:text-indigo-300 transition">
-                                (changer)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="stopGeneration()" id="stop-btn" class="hidden p-2 hover:bg-red-500/20 rounded-lg transition text-red-400" title="Arrêter">
-                        <i data-lucide="square" class="w-4 h-4"></i>
-                    </button>
-                    <button onclick="clearChat()" class="p-2 hover:bg-white/5 rounded-lg transition" title="Effacer">
-                        <i data-lucide="trash-2" class="w-4 h-4 text-gray-400"></i>
-                    </button>
-                    <button onclick="openSettings()" class="p-2 hover:bg-white/5 rounded-lg transition" title="Paramètres">
-                        <i data-lucide="settings" class="w-4 h-4 text-gray-400"></i>
-                    </button>
-                </div>
-            </header>
-            
-            <!-- Chat Area -->
-            <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
-                <!-- Welcome message -->
-                <div class="flex justify-center">
-                    <div class="glass rounded-2xl p-6 max-w-md text-center">
-                        <div class="w-16 h-16 rounded-2xl bg-indigo-500/20 flex items-center justify-center mx-auto mb-4">
-                            <i data-lucide="sparkles" class="w-8 h-8 text-indigo-400"></i>
-                        </div>
-                        <h3 class="text-lg font-semibold mb-2">Bienvenue!</h3>
-                        <p class="text-gray-400 text-sm">
-                            Sélectionne un agent et commence à discuter. 
-                            Va dans ⚙️ Config pour gérer les modèles Ollama.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Input Area -->
-            <div class="p-4 border-t border-white/10">
-                <form id="chat-form" class="flex gap-3">
-                    <div class="flex-1 relative">
-                        <textarea 
-                            id="message-input"
-                            placeholder="Écris ton message... (Shift+Enter pour nouvelle ligne)"
-                            class="w-full bg-[#252525] rounded-xl px-4 py-3 pr-12 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
-                            rows="1"
-                            onkeydown="handleKeyDown(event)"
-                        ></textarea>
-                        <button 
-                            type="submit"
-                            id="send-btn"
-                            class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <i data-lucide="send" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                </form>
-                <p class="text-xs text-gray-500 mt-2 text-center">
-                    Modèle actif: <span id="active-model-label">qwen2:1.5b</span> • Réponses générées localement
-                </p>
-            </div>
-        </main>
+<div style="max-width:1240px;margin:0 auto;padding:16px 20px;display:grid;grid-template-columns:224px 1fr;gap:14px">
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.08em;margin-bottom:10px">AGENTS</div>
+      <div id="agents-list" style="display:flex;flex-direction:column;gap:3px"><div style="color:var(--muted);font-size:12px;padding:6px">Chargement...</div></div>
     </div>
 
-    <!-- Modal: Télécharger un modèle -->
-    <div id="modal-download" class="modal">
-        <div class="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-md mx-4 border border-white/10">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold">Télécharger un modèle</h3>
-                <button onclick="closeModal('modal-download')" class="p-1 hover:bg-white/10 rounded-lg transition">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            
-            <div class="mb-4">
-                <label class="text-sm text-gray-400 mb-2 block">Nom du modèle</label>
-                <input 
-                    type="text" 
-                    id="model-name-input"
-                    placeholder="ex: llama3.1:8b, mistral:7b, codellama:13b"
-                    class="w-full bg-[#252525] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                >
-                <p class="text-xs text-gray-500 mt-2">
-                    Trouve plus de modèles sur <a href="https://ollama.com/library" target="_blank" class="text-indigo-400 hover:underline">ollama.com/library</a>
-                </p>
-            </div>
+    <!-- MODÈLE ACTIF -->
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.08em;margin-bottom:10px">MODÈLE ACTIF</div>
+      <div id="model-mini"><div style="font-size:12px;color:var(--muted)">Chargement...</div></div>
+      <button onclick="openModelSwitcher()" style="margin-top:10px;width:100%;padding:6px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.2);border-radius:6px;color:#a5b4fc;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s" onmouseover="this.style.background='rgba(99,102,241,.2)'" onmouseout="this.style.background='rgba(99,102,241,.1)'">
+        <i data-lucide="refresh-cw" style="width:10px;height:10px"></i> Changer de modèle
+      </button>
+    </div>
 
-            <div id="download-progress" class="hidden mb-4">
-                <div class="flex items-center justify-between text-sm mb-2">
-                    <span id="download-status">Téléchargement...</span>
-                    <span id="download-percent">0%</span>
-                </div>
-                <div class="h-2 bg-[#252525] rounded-full overflow-hidden">
-                    <div id="download-bar" class="progress-bar h-full bg-indigo-500 rounded-full" style="width: 0%"></div>
-                </div>
-            </div>
-            
-            <div class="flex gap-3">
-                <button onclick="closeModal('modal-download')" class="flex-1 py-2 px-4 bg-white/5 hover:bg-white/10 rounded-lg transition">
-                    Annuler
-                </button>
-                <button onclick="startDownload()" id="download-btn" class="flex-1 py-2 px-4 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition font-medium">
-                    Télécharger
-                </button>
-            </div>
+    <!-- SYSTÈME GPU + RAM -->
+    <div class="card" style="padding:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.08em">SYSTÈME</div>
+        <span id="sys-tps" style="display:none" class="tps-chip">— t/s</span>
+      </div>
+      <div id="sys-stats"><div style="font-size:12px;color:var(--muted)">Chargement...</div></div>
+    </div>
+
+    <!-- CYBERDEFENCE -->
+    <div class="card" style="padding:12px">
+      <div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.08em;margin-bottom:10px">CYBERDEFENCE</div>
+      <div id="cyber-mini"><div style="font-size:12px;color:var(--muted)">Hors ligne</div></div>
+    </div>
+  </div>
+
+  <div>
+    <div style="display:flex;gap:3px;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:4px">
+      <button class="tab-btn active" id="tab-chat"     onclick="switchTab('chat')">Chat</button>
+      <button class="tab-btn"        id="tab-cyber"    onclick="switchTab('cyber')">CyberDefence</button>
+      <button class="tab-btn"        id="tab-settings" onclick="switchTab('settings')">Paramètres</button>
+    </div>
+
+    <!-- CHAT -->
+    <div id="panel-chat">
+      <div class="card" style="height:420px;overflow-y:auto;padding:16px;margin-bottom:10px" id="messages">
+        <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted)" id="empty-msg">
+          <i data-lucide="message-square" style="width:28px;height:28px;margin-bottom:8px;opacity:.3"></i>
+          <div style="font-size:12px">Sélectionne un agent et envoie un message</div>
         </div>
-    </div>
-
-    <!-- Modal: Sélectionner un modèle pour l'agent -->
-    <div id="modal-model-selector" class="modal">
-        <div class="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-md mx-4 border border-white/10">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold">Changer de modèle</h3>
-                <button onclick="closeModal('modal-model-selector')" class="p-1 hover:bg-white/10 rounded-lg transition">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            
-            <p class="text-sm text-gray-400 mb-4">Sélectionne un modèle pour l'agent <strong id="selector-agent-name">coder</strong></p>
-            
-            <div id="selector-models-list" class="space-y-2 max-h-64 overflow-y-auto">
-                <!-- Models list -->
-            </div>
-            
-            <div class="mt-4 pt-4 border-t border-white/10">
-                <button onclick="openModelDownload(); closeModal('modal-model-selector')" class="w-full py-2 text-sm text-indigo-400 hover:text-indigo-300 transition">
-                    + Télécharger un nouveau modèle
-                </button>
-            </div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <div style="flex:1;position:relative">
+            <textarea id="msg-input" class="inp" rows="1" placeholder="Message..." style="resize:none;padding:8px 44px 8px 12px;line-height:1.5;max-height:120px;font-family:'Inter',sans-serif;background:transparent;border-color:transparent"></textarea>
+            <span id="char-count" style="position:absolute;right:10px;bottom:9px;font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;color:#6366f1;transition:color .2s">0</span>
+          </div>
+          <button class="btn-p" id="send-btn" onclick="sendMessage()" style="margin-bottom:1px">
+            <i data-lucide="send" style="width:13px;height:13px"></i>Envoyer
+          </button>
         </div>
-    </div>
-
-    <!-- Modal: Paramètres -->
-    <div id="modal-settings" class="modal">
-        <div class="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-lg mx-4 border border-white/10">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold">Paramètres</h3>
-                <button onclick="closeModal('modal-settings')" class="p-1 hover:bg-white/10 rounded-lg transition">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="text-sm text-gray-400 mb-2 block">URL Ollama</label>
-                    <input 
-                        type="text" 
-                        id="ollama-url-input"
-                        value="http://localhost:11434"
-                        class="w-full bg-[#252525] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                    >
-                </div>
-
-                <div>
-                    <label class="text-sm text-gray-400 mb-2 block">Modèle par défaut</label>
-                    <select id="default-model-select" class="w-full bg-[#252525] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
-                        <!-- Options filled dynamically -->
-                    </select>
-                </div>
-
-                <div>
-                    <h4 class="text-sm font-medium mb-2">Modèles installés</h4>
-                    <div id="settings-models-list" class="space-y-2 max-h-48 overflow-y-auto">
-                        <!-- Models list -->
-                    </div>
-                </div>
-            </div>
-            
-            <div class="flex gap-3 mt-6">
-                <button onclick="closeModal('modal-settings')" class="flex-1 py-2 px-4 bg-white/5 hover:bg-white/10 rounded-lg transition">
-                    Fermer
-                </button>
-                <button onclick="saveSettings()" class="flex-1 py-2 px-4 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition font-medium">
-                    Sauvegarder
-                </button>
-            </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--muted)">Modèle :</span>
+            <select id="chat-model" onchange="setAgentModel(currentAgent,this.value)" style="font-size:11px;padding:3px 6px"><option value="">Par défaut</option></select>
+          </div>
+          <span style="font-size:11px;color:var(--muted)">Shift+Entrée = nouvelle ligne</span>
         </div>
+      </div>
     </div>
 
-    <script>
-        // State
-        let currentAgent = 'coder';
-        let agents = [];
-        let models = [];
-        let ws = null;
-        let isConnected = false;
-        let isGenerating = false;
-        let currentTab = 'chat';
-        
-        // Agent icons mapping
-        const agentIcons = {
-            coder: 'code-2',
-            files: 'folder',
-            email: 'mail',
-            social: 'share-2',
-            discord: 'message-circle'
-        };
-        
-        const agentColors = {
-            coder: 'indigo',
-            files: 'orange',
-            email: 'blue',
-            social: 'pink',
-            discord: 'purple'
-        };
+    <!-- CYBER -->
+    <div id="panel-cyber" style="display:none">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
+        <div class="stat-card"><div style="font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:.04em">INSPECTÉES</div><div class="mono" style="font-size:24px;font-weight:600" id="si">—</div></div>
+        <div class="stat-card"><div style="font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:.04em">BLOQUÉES</div><div class="mono" style="font-size:24px;font-weight:600;color:var(--red)" id="sb">—</div></div>
+        <div class="stat-card"><div style="font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:.04em">IPs BLOQUÉES</div><div class="mono" style="font-size:24px;font-weight:600;color:var(--amber)" id="sip">—</div></div>
+        <div class="stat-card"><div style="font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:.04em">ÉVÉNEMENTS</div><div class="mono" style="font-size:24px;font-weight:600" id="se">—</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="card" style="padding:14px"><div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.08em;margin-bottom:10px">STATUT AGENTS</div><div id="cyber-agents"><div style="color:var(--muted);font-size:12px">Chargement...</div></div></div>
+        <div class="card" style="padding:14px"><div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.08em;margin-bottom:10px">SÉVÉRITÉS</div><div id="cyber-sev"></div></div>
+      </div>
+      <div class="card" style="padding:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.08em">TIMELINE</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="sev-filter" onchange="loadEvents()" style="font-size:11px"><option value="">Tout</option><option value="CRITICAL">CRITICAL</option><option value="WARNING">WARNING</option><option value="INFO">INFO</option></select>
+            <button class="btn-s" onclick="loadEvents()">Actualiser</button>
+            <button onclick="window.open(CYBER+'/events?limit=500&format=csv','_blank')" style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.2);border-radius:6px;padding:4px 10px;color:#818cf8;font-size:11px;cursor:pointer">Export CSV</button>
+          </div>
+        </div>
+        <div id="evs" style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"><div style="color:var(--muted);font-size:12px;padding:8px">Chargement...</div></div>
+      </div>
+    </div>
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
-            loadAgents();
-            loadModels();
-            connectWebSocket();
-            checkOllamaStatus();
-            
-            document.getElementById('chat-form').addEventListener('submit', handleSubmit);
-            
-            // Auto-resize textarea
-            const textarea = document.getElementById('message-input');
-            textarea.addEventListener('input', () => {
-                textarea.style.height = 'auto';
-                textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-            });
+    <!-- SETTINGS -->
+    <div id="panel-settings" style="display:none">
+      <div class="card" style="padding:16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:500;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:8px">
+            <i data-lucide="zap" style="width:14px;height:14px;color:var(--accent)"></i>Modèle GPU actif
+          </div>
+          <button class="btn-s" onclick="checkLLM()">Actualiser</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Clique sur <strong style="color:#a5b4fc">⚡ Charger</strong> pour switcher automatiquement (~60s pour le 32B)</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px" id="model-cards"></div>
+        <div id="switch-progress" style="margin-top:12px;display:none"></div>
+        <div id="active-model-info" style="margin-top:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:none">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:.04em">MODÈLE CHARGÉ</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="dot dot-green"></span>
+            <span id="active-model-name" class="mono" style="font-size:13px;font-weight:600;color:#a5b4fc">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="padding:16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+          <i data-lucide="cpu" style="width:14px;height:14px;color:var(--accent)"></i>Modèle par agent
+        </div>
+        <div id="agent-model-config" style="display:flex;flex-direction:column;gap:8px"><div style="color:var(--muted);font-size:12px">Chargement...</div></div>
+      </div>
+      <div class="card" style="padding:16px">
+        <div style="font-size:13px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px"><i data-lucide="settings" style="width:14px;height:14px;color:var(--accent)"></i>Paramètres globaux</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">URL Ollama</label><input class="inp" id="ollama-url" value="http://localhost:11434"></div>
+          <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Température</label><input class="inp" id="temperature" type="number" value="0.7" step="0.1" min="0" max="2"></div>
+          <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Max tokens</label><input class="inp" id="max-tokens" type="number" value="2048"></div>
+          <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Timeout (sec)</label><input class="inp" id="timeout" type="number" value="120"></div>
+        </div>
+        <div style="margin-top:12px;display:flex;justify-content:flex-end"><button class="btn-p" onclick="saveSettings()">Sauvegarder</button></div>
+      </div>
+    </div>
+  </div>
+</div>
 
-            // Check Ollama status periodically
-            setInterval(checkOllamaStatus, 30000);
-        });
+<!-- MODEL SWITCHER MODAL -->
+<div class="modal-bg" id="model-modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box" style="width:520px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div>
+        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px">
+          <i data-lucide="cpu" style="width:14px;height:14px;color:var(--accent)"></i>Changer de modèle
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Clique ⚡ Charger — le serveur redémarre automatiquement</div>
+      </div>
+      <button onclick="document.getElementById('model-modal').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px" id="modal-model-cards"></div>
+    <div id="switch-progress-modal" style="margin-top:10px;display:none"></div>
+    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">
+        <span class="dot" id="modal-llm-dot" style="background:var(--muted)"></span>
+        <span id="modal-llm-txt">Vérification...</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-s" onclick="checkLLM()" style="font-size:12px">Actualiser</button>
+        <button onclick="document.getElementById('model-modal').style.display='none'" class="btn-p">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-        // Tab switching
-        function switchTab(tab) {
-            currentTab = tab;
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`tab-${tab}`).classList.add('active');
-            
-            document.getElementById('panel-chat').classList.toggle('hidden', tab !== 'chat');
-            document.getElementById('panel-settings').classList.toggle('hidden', tab !== 'settings');
+<div class="modal-bg" id="dl-modal">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span style="font-weight:500">Télécharger un modèle</span>
+      <button onclick="document.getElementById('dl-modal').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1">×</button>
+    </div>
+    <input class="inp" id="dl-name" placeholder="ex: llama3.2:3b, mistral:7b" style="margin-bottom:10px">
+    <div id="dl-prog" style="display:none;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;color:var(--muted)"><span id="dl-st">Préparation...</span><span id="dl-pct">0%</span></div>
+      <div style="background:var(--bg2);border-radius:4px;height:4px"><div id="dl-bar" style="background:var(--accent);height:4px;border-radius:4px;width:0%;transition:width .3s"></div></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button onclick="document.getElementById('dl-modal').style.display='none'" style="background:none;border:1px solid var(--border);border-radius:7px;padding:7px 14px;color:var(--muted);cursor:pointer;font-size:13px">Annuler</button>
+      <button class="btn-p" onclick="startDL()">Télécharger</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
 
-            if (tab === 'settings') {
-                loadModels();
-            }
-        }
+<script>
+const BASE=window.location.origin;
+const CYBER='http://localhost:8086';
+const LLAMA='http://localhost:8081';
+let ws=null,agents=[],currentAgent=null,currentTab='chat',isGen=false,cyberPoll=null,activeModel='',isSwitching=false;
+const agentModels=JSON.parse(localStorage.getItem('agentModels')||'{}');
+const ICONS={coder:'code-2',files:'folder',email:'mail',social:'share-2',discord:'message-circle',cyberdefence:'shield'};
+const COLORS={coder:'#6366f1',files:'#f97316',email:'#3b82f6',social:'#ec4899',discord:'#8b5cf6',cyberdefence:'#22c55e'};
+const $=id=>document.getElementById(id);
 
-        // Load models from Ollama
-        async function loadModels() {
-            try {
-                const response = await fetch('/api/ollama/models');
-                const data = await response.json();
-                models = data.models || [];
-                renderModelsList();
-            } catch (error) {
-                console.error('Error loading models:', error);
-                // Try direct Ollama API
-                try {
-                    const response = await fetch('http://localhost:11434/api/tags');
-                    const data = await response.json();
-                    models = data.models || [];
-                    renderModelsList();
-                } catch (e) {
-                    console.error('Direct Ollama fetch failed:', e);
-                }
-            }
-        }
+const AVAILABLE_MODELS=[
+  {id:'llama3b',  name:'Llama-3.2-3B', full:'Llama-3.2-3B-Instruct-Q4_K_M',  vram:'2 GB', ram:'0 GB', speed:95, quality:45, ctx:16384, gpu:28, desc:'Ultra rapide, idéal pour les tâches simples',       color:'#22c55e', badge:'Rapide'},
+  {id:'mistral7b',name:'Mistral-7B',   full:'Mistral-7B-Instruct-v0.3-Q4_K_M',vram:'5 GB', ram:'0 GB', speed:70, quality:72, ctx:16384, gpu:33, desc:'Excellent équilibre vitesse/qualité, bon français', color:'#f59e0b', badge:'Équilibré'},
+  {id:'qwen32b',  name:'Qwen2.5-32B',  full:'Qwen2.5-32B-Instruct-Q4_K_S',   vram:'7 GB', ram:'11 GB',speed:20, quality:95, ctx:8192,  gpu:25, desc:'Niveau GPT-4o, raisonnement avancé et code',       color:'#6366f1', badge:'Meilleur'}
+];
 
-        // Render models list
-        function renderModelsList() {
-            const container = document.getElementById('models-list');
-            if (!container) return;
+function shortModelName(rawId){
+  if(!rawId)return'—';
+  const found=AVAILABLE_MODELS.find(m=>rawId.toLowerCase().includes(m.id.toLowerCase())||rawId.toLowerCase().includes(m.full.toLowerCase().split('-')[0].toLowerCase()));
+  return found?found.name:rawId.replace(/\.gguf$/i,'').split(/[\\/]/).pop()||rawId;
+}
 
-            if (models.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-4 text-gray-500 text-sm">
-                        Aucun modèle installé
-                    </div>
-                `;
-                return;
-            }
+function toast(msg,type='info'){
+  const t=$('toast');t.textContent=msg;t.style.display='block';
+  t.style.borderColor=type==='success'?'rgba(34,197,94,.3)':type==='error'?'rgba(239,68,68,.3)':'rgba(99,102,241,.3)';
+  t.style.color=type==='success'?'#4ade80':type==='error'?'#f87171':'#a5b4fc';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);
+}
 
-            container.innerHTML = models.map(model => {
-                const size = model.size ? formatBytes(model.size) : 'N/A';
-                return `
-                    <div class="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                        <div>
-                            <div class="font-medium text-sm">${model.name}</div>
-                            <div class="text-xs text-gray-500">${size}</div>
-                        </div>
-                        <button onclick="deleteModel('${model.name}')" class="p-1 hover:bg-red-500/20 rounded text-red-400 transition" title="Supprimer">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                `;
-            }).join('');
+// ─── SYSTEM STATS ─────────────────────────────────────────────────────────────
+async function loadSystemStats(){
+  try{
+    const r=await fetch(BASE+'/api/system/stats');
+    const d=await r.json();
 
-            lucide.createIcons();
+    // tokens/sec
+    const tps=d.llm?.tokens_per_sec||0;
+    if(tps>0){
+      const tpsStr=tps.toFixed(1);
+      // header
+      const th=$('tps-header');if(th){th.style.display='flex';$('tps-val').textContent=tpsStr;}
+      // sidebar
+      const st=$('sys-tps');if(st){st.style.display='inline-flex';st.textContent=tpsStr+' t/s';}
+    }
 
-            // Update settings modal
-            const settingsContainer = document.getElementById('settings-models-list');
-            if (settingsContainer) {
-                settingsContainer.innerHTML = container.innerHTML;
-                lucide.createIcons();
-            }
+    // GPU header chip
+    const gpu=d.gpu;
+    if(gpu&&gpu.name){
+      const gh=$('gpu-header');if(gh)gh.style.display='flex';
+      const vramPct=gpu.vram_total_gb>0?Math.round(gpu.vram_used_gb/gpu.vram_total_gb*100):0;
+      if($('gpu-header-txt'))$('gpu-header-txt').textContent=`GPU ${gpu.util_pct}% · VRAM ${gpu.vram_used_gb.toFixed(1)}/${gpu.vram_total_gb.toFixed(1)}GB`;
+      if($('temp-header-txt')){
+        const tc=$('temp-header-txt');
+        tc.textContent=gpu.temp_c+'°C';
+        tc.style.color=gpu.temp_c>80?'#f87171':gpu.temp_c>70?'#fbbf24':'#94a3b8';
+      }
 
-            // Update default model select
-            const select = document.getElementById('default-model-select');
-            if (select) {
-                select.innerHTML = models.map(m => 
-                    `<option value="${m.name}">${m.name}</option>`
-                ).join('');
-            }
-        }
+      // sidebar SYSTÈME
+      const ram=d.ram;
+      const ramPct=ram&&ram.total_gb>0?Math.round(ram.used_gb/ram.total_gb*100):0;
+      const kvPct=Math.round(d.llm?.kv_cache_pct||0);
 
-        // Check Ollama status
-        async function checkOllamaStatus() {
-            const statusEl = document.getElementById('ollama-status');
-            try {
-                const response = await fetch('http://localhost:11434/api/tags');
-                if (response.ok) {
-                    const data = await response.json();
-                    const count = data.models?.length || 0;
-                    statusEl.innerHTML = `
-                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                        <span class="text-gray-400">Ollama: ${count} modèle(s)</span>
-                    `;
-                }
-            } catch (error) {
-                statusEl.innerHTML = `
-                    <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                    <span class="text-gray-400">Ollama: hors ligne</span>
-                `;
-            }
-        }
+      const tempColor=gpu.temp_c>80?'#f87171':gpu.temp_c>70?'#fbbf24':'#4ade80';
+      const vramColor=vramPct>90?'#f87171':vramPct>75?'#fbbf24':'#818cf8';
+      const ramColor=ramPct>85?'#f87171':ramPct>70?'#fbbf24':'#60a5fa';
 
-        // Format bytes
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-        }
+      $('sys-stats').innerHTML=`
+        <div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">${gpu.name.replace('NVIDIA ','')}</div>
 
-        // Modal functions
-        function openModal(id) {
-            document.getElementById(id).classList.add('active');
-        }
+        <div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:2px">
+            <span>GPU</span><span style="color:${gpu.util_pct>80?'#f87171':gpu.util_pct>50?'#fbbf24':'#94a3b8'}">${gpu.util_pct}%</span>
+          </div>
+          <div class="stat-bar"><div class="stat-bar-fill" style="width:${gpu.util_pct}%;background:${gpu.util_pct>80?'#ef4444':gpu.util_pct>50?'#f59e0b':'#6366f1'}"></div></div>
+        </div>
 
-        function closeModal(id) {
-            document.getElementById(id).classList.remove('active');
-        }
+        <div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:2px">
+            <span>VRAM</span><span style="color:${vramColor}">${gpu.vram_used_gb.toFixed(1)}/${gpu.vram_total_gb.toFixed(1)} GB</span>
+          </div>
+          <div class="stat-bar"><div class="stat-bar-fill" style="width:${vramPct}%;background:${vramColor}"></div></div>
+        </div>
 
-        function openModelDownload() {
-            document.getElementById('model-name-input').value = '';
-            document.getElementById('download-progress').classList.add('hidden');
-            document.getElementById('download-btn').disabled = false;
-            openModal('modal-download');
-        }
+        ${ram&&ram.total_gb>0?`
+        <div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:2px">
+            <span>RAM</span><span style="color:${ramColor}">${ram.used_gb.toFixed(1)}/${ram.total_gb.toFixed(1)} GB</span>
+          </div>
+          <div class="stat-bar"><div class="stat-bar-fill" style="width:${ramPct}%;background:${ramColor}"></div></div>
+        </div>`:''}
 
-        function openModelSelector() {
-            const container = document.getElementById('selector-models-list');
-            document.getElementById('selector-agent-name').textContent = currentAgent;
-            
-            container.innerHTML = models.map(model => `
-                <button onclick="selectModelForAgent('${model.name}')" class="w-full text-left p-3 hover:bg-white/5 rounded-lg transition flex items-center justify-between">
-                    <div>
-                        <div class="font-medium">${model.name}</div>
-                        <div class="text-xs text-gray-500">${formatBytes(model.size || 0)}</div>
-                    </div>
-                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-500"></i>
-                </button>
-            `).join('');
-            
-            lucide.createIcons();
-            openModal('modal-model-selector');
-        }
+        <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:4px">
+          <span style="color:var(--muted)">Temp</span>
+          <span style="color:${tempColor};font-weight:600">${gpu.temp_c}°C</span>
+        </div>
 
-        function openSettings() {
-            loadModels();
-            openModal('modal-settings');
-        }
+        ${kvPct>0?`
+        <div style="margin-top:6px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:2px">
+            <span>KV Cache</span><span style="color:${kvPct>80?'#f87171':'#94a3b8'}">${kvPct}%</span>
+          </div>
+          <div class="stat-bar"><div class="stat-bar-fill" style="width:${kvPct}%;background:${kvPct>80?'#ef4444':'#475569'}"></div></div>
+        </div>`:''}
 
-        // Download model
-        async function downloadModel(modelName) {
-            document.getElementById('model-name-input').value = modelName;
-            openModal('modal-download');
-        }
+        ${tps>0?`
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:10px;color:var(--muted)">Tokens/sec</span>
+          <span class="tps-chip">${tps.toFixed(1)} t/s</span>
+        </div>`:''}
+      `;
+    }
+  }catch{
+    $('sys-stats').innerHTML='<div style="font-size:11px;color:var(--muted)">nvidia-smi indisponible</div>';
+  }
+}
 
-        async function startDownload() {
-            const modelName = document.getElementById('model-name-input').value.trim();
-            if (!modelName) {
-                alert('Entre un nom de modèle');
-                return;
-            }
+// ─── SWITCH MODEL ─────────────────────────────────────────────────────────────
+async function switchModel(modelId){
+  if(isSwitching)return;
+  isSwitching=true;
+  const spinSVG='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite;flex-shrink:0"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+  const steps=['Arrêt du modèle précédent...','Chargement du nouveau modèle...','Initialisation GPU+RAM...','Chargement des tenseurs...','Préchauffage...'];
+  const progHTML=(msg)=>`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:8px;font-size:12px;color:#a5b4fc">${spinSVG}<span class="sw-status">${msg}</span></div>`;
+  const setP=(id,html)=>{const el=$(id);if(el){el.style.display='';el.innerHTML=html;}};
+  setP('switch-progress',progHTML('Démarrage...'));
+  setP('switch-progress-modal',progHTML('Démarrage...'));
+  let si=0;
+  const iv=setInterval(()=>{si=(si+1)%steps.length;document.querySelectorAll('.sw-status').forEach(el=>el.textContent=steps[si]);},5000);
+  renderAllModelCards();
+  try{
+    const r=await fetch('/api/model/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model_id:modelId})});
+    const text=await r.text();
+    let d;try{d=JSON.parse(text);}catch{throw new Error('Réponse invalide: '+text.substring(0,120));}
+    clearInterval(iv);
+    if(d.success){
+      const ok=`<div style="padding:10px 12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;font-size:12px;color:#4ade80">✓ ${d.model} chargé !</div>`;
+      setP('switch-progress',ok);setP('switch-progress-modal',ok);
+      toast('✓ '+d.model+' actif','success');
+      await checkLLM();
+      setTimeout(()=>{['switch-progress','switch-progress-modal'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});},4000);
+    }else throw new Error(d.error||'Erreur inconnue');
+  }catch(e){
+    clearInterval(iv);
+    const err=`<div style="padding:10px 12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;font-size:12px;color:#f87171">✗ ${e.message}</div>`;
+    setP('switch-progress',err);setP('switch-progress-modal',err);
+    toast('Erreur: '+e.message,'error');
+  }finally{isSwitching=false;renderAllModelCards();}
+}
 
-            const progressDiv = document.getElementById('download-progress');
-            const statusEl = document.getElementById('download-status');
-            const percentEl = document.getElementById('download-percent');
-            const barEl = document.getElementById('download-bar');
-            const downloadBtn = document.getElementById('download-btn');
+async function checkLLM(){
+  try{
+    const r=await fetch(LLAMA+'/v1/models');
+    const d=await r.json();
+    const rawId=d.data&&d.data.length?d.data[0].id:'';
+    activeModel=rawId;
+    const short=shortModelName(rawId);
+    $('llm-dot').className='dot dot-green';
+    $('llm-label').textContent=short;
+    $('llm-label').style.color='#94a3b8';
+    $('hdr-model').textContent=agentModels[currentAgent]?(AVAILABLE_MODELS.find(m=>m.id===agentModels[currentAgent])?.name||agentModels[currentAgent]):short;
+    updateModelMini(rawId);
+    if($('modal-llm-dot')){$('modal-llm-dot').className='dot dot-green';$('modal-llm-txt').textContent=short;}
+    if($('active-model-info')){$('active-model-info').style.display='';$('active-model-name').textContent=short;}
+    updateChatModelSel();
+    renderAllModelCards();
+  }catch{
+    activeModel='';
+    $('llm-dot').className='dot dot-red';
+    $('llm-label').textContent='LLM hors ligne';
+    $('hdr-model').textContent='—';
+    updateModelMini('');
+    if($('modal-llm-dot')){$('modal-llm-dot').className='dot dot-red';$('modal-llm-txt').textContent='llama-server hors ligne';}
+    if($('active-model-info'))$('active-model-info').style.display='none';
+    updateChatModelSel();renderAllModelCards();
+  }
+}
 
-            progressDiv.classList.remove('hidden');
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = 'Téléchargement...';
+function updateModelMini(rawId){
+  const found=AVAILABLE_MODELS.find(m=>rawId&&(rawId.toLowerCase().includes(m.id.toLowerCase())||rawId.toLowerCase().includes(m.full.toLowerCase().split('-')[0].toLowerCase())));
+  if(rawId&&found){
+    $('model-mini').innerHTML=`
+      <div style="display:flex;align-items:center;gap:6px"><span class="dot dot-green"></span><span style="font-size:12px;font-weight:500;color:${found.color}">${found.name}</span></div>
+      <div style="font-size:10px;color:var(--muted)">${found.desc}</div>
+      <div style="display:flex;gap:6px;margin-top:2px">
+        <span class="model-vram">${found.vram} VRAM</span>
+        ${found.ram!=='0 GB'?`<span class="model-vram" style="background:rgba(245,158,11,.1);color:#fbbf24">${found.ram} RAM</span>`:''}
+      </div>
+      <div style="margin-top:4px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Vitesse</div>
+        <div class="speed-bar"><div class="speed-fill" style="width:${found.speed}%;background:${found.color}"></div></div>
+      </div>`;
+  }else{
+    $('model-mini').innerHTML=`<div style="font-size:12px;color:var(--red)">llama-server hors ligne</div><div style="font-size:10px;color:var(--muted);margin-top:2px">Lance start_llama.bat</div>`;
+  }
+  lucide.createIcons();
+}
 
-            try {
-                const response = await fetch('http://localhost:11434/api/pull', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: modelName, stream: true })
-                });
+function isModelActive(m){
+  if(!activeModel||!m||!m.id)return false;
+  return activeModel.toLowerCase().includes(m.id.toLowerCase())||activeModel.toLowerCase().includes(m.full.toLowerCase().split('-')[0].toLowerCase());
+}
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
+function modelCardHTML(m,compact=false){
+  const on=isModelActive(m);
+  const btnHTML=on
+    ?`<button disabled style="width:100%;margin-top:10px;padding:6px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);border-radius:6px;color:#4ade80;font-size:11px;font-weight:600;cursor:default">● Actif</button>`
+    :isSwitching
+    ?`<button disabled style="width:100%;margin-top:10px;padding:6px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:6px;color:#a5b4fc;font-size:11px;opacity:.5;cursor:not-allowed">En cours...</button>`
+    :`<button onclick="switchModel('${m.id}')" style="width:100%;margin-top:10px;padding:6px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);border-radius:6px;color:#a5b4fc;font-size:11px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(99,102,241,.28)'" onmouseout="this.style.background='rgba(99,102,241,.15)'">⚡ Charger ce modèle</button>`;
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+  if(compact){
+    return `<div class="model-card${on?' active':''}" style="display:flex;align-items:center;gap:12px;padding:12px 14px">
+      <div style="width:36px;height:36px;border-radius:8px;background:${m.color}22;border:1px solid ${m.color}33;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i data-lucide="cpu" style="width:16px;height:16px;color:${m.color}"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <span style="font-size:13px;font-weight:600">${m.name}</span>
+          <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:${m.color}22;color:${m.color};border:1px solid ${m.color}33">${m.badge}</span>
+          ${on?'<span class="badge badge-green" style="font-size:9px">● ACTIF</span>':''}
+        </div>
+        <div style="font-size:11px;color:var(--muted)">${m.desc}</div>
+        <div style="display:flex;gap:4px;margin-top:4px">
+          <span class="model-vram">${m.vram}</span>
+          ${m.ram!=='0 GB'?`<span class="model-vram" style="background:rgba(245,158,11,.1);color:#fbbf24">${m.ram} DDR5</span>`:''}
+          <span class="model-vram" style="background:rgba(59,130,246,.1);color:#60a5fa">ctx ${(m.ctx/1024).toFixed(0)}k</span>
+        </div>
+      </div>
+      <div style="flex-shrink:0;min-width:120px">
+        ${on?`<button disabled style="width:100%;padding:7px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);border-radius:6px;color:#4ade80;font-size:11px;font-weight:600;cursor:default">● Actif</button>`
+          :isSwitching?`<button disabled style="width:100%;padding:7px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:6px;color:#a5b4fc;font-size:11px;opacity:.5;cursor:not-allowed">En cours...</button>`
+          :`<button onclick="switchModel('${m.id}')" style="width:100%;padding:7px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);border-radius:6px;color:#a5b4fc;font-size:11px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(99,102,241,.28)'" onmouseout="this.style.background='rgba(99,102,241,.15)'">⚡ Charger</button>`}
+      </div>
+    </div>`;
+  }
 
-                    const lines = decoder.decode(value).split('\n').filter(l => l.trim());
-                    for (const line of lines) {
-                        try {
-                            const data = JSON.parse(line);
-                            
-                            if (data.status) {
-                                statusEl.textContent = data.status;
-                            }
-                            
-                            if (data.completed && data.total) {
-                                const percent = Math.round((data.completed / data.total) * 100);
-                                percentEl.textContent = percent + '%';
-                                barEl.style.width = percent + '%';
-                            }
+  return `<div class="model-card${on?' active':''}">
+    ${on?`<div style="position:absolute;top:8px;right:8px"><span class="badge badge-green" style="font-size:9px">● ACTIF</span></div>`:''}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="width:28px;height:28px;border-radius:7px;background:${m.color}22;border:1px solid ${m.color}33;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i data-lucide="cpu" style="width:13px;height:13px;color:${m.color}"></i>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600">${m.name}</div>
+        <div style="font-size:10px;padding:1px 5px;border-radius:3px;background:${m.color}22;color:${m.color};display:inline-block;margin-top:1px">${m.badge}</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4">${m.desc}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+      <span class="model-vram">${m.vram} VRAM</span>
+      ${m.ram!=='0 GB'?`<span class="model-vram" style="background:rgba(245,158,11,.1);color:#fbbf24">${m.ram} RAM</span>`:''}
+      <span class="model-vram" style="background:rgba(59,130,246,.1);color:#60a5fa">ctx ${(m.ctx/1024).toFixed(0)}k</span>
+    </div>
+    <div style="margin-bottom:4px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px"><span>Vitesse</span><span>${m.speed}%</span></div>
+      <div class="speed-bar"><div class="speed-fill" style="width:${m.speed}%;background:${m.color}55"></div></div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px"><span>Qualité</span><span>${m.quality}%</span></div>
+      <div class="speed-bar"><div class="speed-fill" style="width:${m.quality}%;background:${m.color}"></div></div>
+    </div>
+    ${btnHTML}
+  </div>`;
+}
 
-                            if (data.status === 'success') {
-                                statusEl.textContent = '✅ Téléchargement terminé!';
-                                percentEl.textContent = '100%';
-                                barEl.style.width = '100%';
-                                
-                                setTimeout(() => {
-                                    closeModal('modal-download');
-                                    loadModels();
-                                }, 1500);
-                            }
-                        } catch (e) {}
-                    }
-                }
-            } catch (error) {
-                statusEl.textContent = '❌ Erreur: ' + error.message;
-                downloadBtn.disabled = false;
-                downloadBtn.textContent = 'Réessayer';
-            }
-        }
+function renderAllModelCards(){
+  const mc=$('model-cards');
+  if(mc){mc.innerHTML=AVAILABLE_MODELS.map(m=>modelCardHTML(m,false)).join('');lucide.createIcons();}
+  const mmc=$('modal-model-cards');
+  if(mmc){mmc.innerHTML=AVAILABLE_MODELS.map(m=>modelCardHTML(m,true)).join('');lucide.createIcons();}
+}
 
-        // Delete model
-        async function deleteModel(modelName) {
-            if (!confirm(`Supprimer le modèle "${modelName}" ?`)) return;
+function openModelSwitcher(){
+  $('model-modal').style.display='flex';
+  renderAllModelCards();lucide.createIcons();
+}
 
-            try {
-                const response = await fetch('http://localhost:11434/api/delete', {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: modelName })
-                });
+async function loadAgents(){
+  try{const r=await fetch(BASE+'/api/agents');agents=await r.json();renderAgents();if(agents.length)selectAgent(agents[0].id);}
+  catch(e){console.error(e);}
+}
 
-                if (response.ok) {
-                    loadModels();
-                } else {
-                    alert('Erreur lors de la suppression');
-                }
-            } catch (error) {
-                alert('Erreur: ' + error.message);
-            }
-        }
+function renderAgents(){
+  $('agents-list').innerHTML=agents.map(a=>{
+    const mid=agentModels[a.id]||'';
+    const mname=mid?(AVAILABLE_MODELS.find(m=>m.id===mid)?.name||mid):'défaut';
+    return `<button class="agent-btn${currentAgent===a.id?' active':''}" onclick="selectAgent('${a.id}')">
+      <div style="display:flex;align-items:center;gap:8px">
+        <i data-lucide="${ICONS[a.id]||'bot'}" style="width:14px;height:14px;color:${COLORS[a.id]||'#64748b'}"></i>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500;text-transform:capitalize">${a.name||a.id}</div>
+          <div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${mname}</div>
+        </div>
+      </div>
+    </button>`;
+  }).join('');
+  lucide.createIcons();
+}
 
-        // Select model for agent (visual only - need backend update for persistence)
-        function selectModelForAgent(modelName) {
-            document.getElementById('current-agent-model').textContent = modelName;
-            document.getElementById('active-model-label').textContent = modelName;
-            closeModal('modal-model-selector');
-            
-            // Store in localStorage for persistence
-            const agentModels = JSON.parse(localStorage.getItem('agentModels') || '{}');
-            agentModels[currentAgent] = modelName;
-            localStorage.setItem('agentModels', JSON.stringify(agentModels));
-        }
+function selectAgent(id){
+  currentAgent=id;
+  const a=agents.find(x=>x.id===id)||{};
+  $('hdr-agent').textContent=a.name||id;
+  const overrideId=agentModels[id];
+  $('hdr-model').textContent=overrideId?(AVAILABLE_MODELS.find(m=>m.id===overrideId)?.name||overrideId):shortModelName(activeModel);
+  renderAgents();updateChatModelSel();
 
-        // Load agents from API
-        async function loadAgents() {
-            try {
-                const response = await fetch('/api/agents');
-                agents = await response.json();
-                renderAgentsList();
-                
-                if (agents.length > 0) {
-                    selectAgent(agents[0].id);
-                }
-            } catch (error) {
-                console.error('Error loading agents:', error);
-            }
-        }
+  // ── Auto-switch : si l'agent a un modèle assigné différent du modèle actif
+  if(overrideId && !isModelActive(AVAILABLE_MODELS.find(m=>m.id===overrideId)||{}) && !isSwitching){
+    const target=AVAILABLE_MODELS.find(m=>m.id===overrideId);
+    if(target){
+      toast('🔄 Chargement de '+target.name+' pour '+(a.name||id)+'...','info');
+      switchModel(overrideId);
+    }
+  }
+}
 
-        // Render agents list
-        function renderAgentsList() {
-            const container = document.getElementById('agents-list');
-            const agentModels = JSON.parse(localStorage.getItem('agentModels') || '{}');
+function updateChatModelSel(){
+  const sel=$('chat-model'),cur=agentModels[currentAgent]||'';
+  const defLabel=activeModel?'Par défaut ('+shortModelName(activeModel)+')':'Par défaut';
+  sel.innerHTML=`<option value="">${defLabel}</option>`+AVAILABLE_MODELS.map(m=>`<option value="${m.id}"${m.id===cur?' selected':''}>${m.name}</option>`).join('');
+}
 
-            container.innerHTML = agents.map(agent => {
-                const displayModel = agentModels[agent.id] || agent.model;
-                return `
-                    <button 
-                        onclick="selectAgent('${agent.id}')"
-                        class="agent-card w-full p-3 rounded-xl text-left transition ${
-                            agent.id === currentAgent ? 'bg-indigo-500/20 border border-indigo-500/30' : 'hover:bg-white/5'
-                        }"
-                    >
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-lg bg-${agentColors[agent.id] || 'gray'}-500/20 flex items-center justify-center">
-                                <i data-lucide="${agentIcons[agent.id] || 'bot'}" class="w-5 h-5 text-${agentColors[agent.id] || 'gray'}-400"></i>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="font-medium truncate">${agent.name}</p>
-                                <p class="text-xs text-gray-500 truncate">${displayModel}</p>
-                            </div>
-                            ${agent.enabled ? 
-                                '<span class="w-2 h-2 rounded-full bg-green-500"></span>' : 
-                                '<span class="w-2 h-2 rounded-full bg-gray-500"></span>'
-                            }
-                        </div>
-                    </button>
-                `;
-            }).join('');
-            
-            lucide.createIcons();
-        }
+function setAgentModel(id,val){
+  if(!id)return;
+  agentModels[id]=val;
+  localStorage.setItem('agentModels',JSON.stringify(agentModels));
+  if(id===currentAgent)$('hdr-model').textContent=val?(AVAILABLE_MODELS.find(m=>m.id===val)?.name||val):shortModelName(activeModel);
+  renderAgents();renderAgentModelConfig();
+}
 
-        // Select agent
-        function selectAgent(agentId) {
-            currentAgent = agentId;
-            const agent = agents.find(a => a.id === agentId);
-            const agentModels = JSON.parse(localStorage.getItem('agentModels') || '{}');
-            
-            if (agent) {
-                document.getElementById('current-agent-name').textContent = agent.name;
-                const displayModel = agentModels[agentId] || agent.model;
-                document.getElementById('current-agent-model').textContent = displayModel;
-                document.getElementById('active-model-label').textContent = displayModel;
-            }
-            
-            renderAgentsList();
-        }
+function renderAgentModelConfig(){
+  if(!agents.length){$('agent-model-config').innerHTML='<div style="color:var(--muted);font-size:12px">Aucun agent chargé</div>';return;}
+  $('agent-model-config').innerHTML=agents.map(a=>{
+    const cur=agentModels[a.id]||'';
+    const defLabel='Par défaut ('+(shortModelName(activeModel)||'—')+')';
+    const opts=`<option value="">${defLabel}</option>`+AVAILABLE_MODELS.map(m=>`<option value="${m.id}"${m.id===cur?' selected':''}>${m.name}</option>`).join('');
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <i data-lucide="${ICONS[a.id]||'bot'}" style="width:13px;height:13px;color:${COLORS[a.id]||'#64748b'}"></i>
+        <div>
+          <div style="font-size:12px;font-weight:500;text-transform:capitalize">${a.name||a.id}</div>
+          <div style="font-size:10px;color:var(--muted)">${cur?(AVAILABLE_MODELS.find(m=>m.id===cur)?.name||cur):'modèle par défaut'}</div>
+        </div>
+      </div>
+      <select onchange="setAgentModel('${a.id}',this.value)" style="font-size:12px;min-width:170px">${opts}</select>
+    </div>`;
+  }).join('');
+  lucide.createIcons();
+}
 
-        // WebSocket connection
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-            
-            ws.onopen = () => {
-                isConnected = true;
-                updateStatus(true);
-            };
-            
-            ws.onclose = () => {
-                isConnected = false;
-                updateStatus(false);
-                setTimeout(connectWebSocket, 3000);
-            };
-            
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                handleWSMessage(data);
-            };
-        }
+async function sendMessage(){
+  const inp=$('msg-input'),msg=inp.value.trim();
+  if(!msg||!currentAgent||isGen)return;
+  $('empty-msg')?.remove();
+  inp.value='';inp.style.height='auto';$('char-count').textContent='0';
+  isGen=true;$('send-btn').disabled=true;
+  addMsg(msg,'user');
+  const think=addThinking();
+  const t0=Date.now();
+  try{
+    const modelId=$('chat-model').value;
+    const body={message:msg};if(modelId)body.model=modelId;
+    const r=await fetch(BASE+'/api/chat/'+currentAgent,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    think.remove();
+    const elapsed=d.elapsed_sec?d.elapsed_sec.toFixed(1):((Date.now()-t0)/1000).toFixed(1);
+    const tps=(d.tokens_per_sec&&d.tokens_per_sec>0)?d.tokens_per_sec.toFixed(1):null;
+    addMsg(d.output||d.response||d.content||JSON.stringify(d),'ai',false,elapsed,tps);
+  }catch(e){think.remove();addMsg('Erreur : '+e.message,'ai',true);}
+  finally{isGen=false;$('send-btn').disabled=false;inp.focus();}
+}
 
-        // Handle WebSocket messages
-        function handleWSMessage(data) {
-            if (data.type === 'response') {
-                hideTypingIndicator();
-                isGenerating = false;
-                document.getElementById('stop-btn').classList.add('hidden');
-                addMessage(data.result.output, 'assistant', data.result.actions);
-            }
-        }
+function addMsg(text,role,err=false,elapsed=null,tps=null){
+  const box=$('messages');
+  const d=document.createElement('div');d.className='msg-wrap';
+  const s=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  if(role==='user'){d.className+=' msg-user';d.innerHTML=`<div class="bu">${s}</div>`;}
+  else{
+    const color=COLORS[currentAgent]||'#64748b',icon=ICONS[currentAgent]||'bot';
+    const metaHtml=(elapsed||tps)?`<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);justify-content:flex-end">
+      ${elapsed?`<span style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#60a5fa;font-family:'JetBrains Mono',monospace"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${elapsed}s</span>`:''}
+      ${tps?`<span style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#4ade80;font-family:'JetBrains Mono',monospace"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>${tps} t/s</span>`:''}
+    </div>`:'';
+    d.className+=' msg-ai';
+    d.innerHTML=`<div class="avatar" style="background:${color}22;border:1px solid ${color}33"><i data-lucide="${icon}" style="width:13px;height:13px;color:${color}"></i></div><div class="ba"${err?' style="border-color:rgba(239,68,68,.3);color:var(--red)"':''}>${s}${metaHtml}</div>`;
+  }
+  box.appendChild(d);box.scrollTop=box.scrollHeight;lucide.createIcons();
+}
 
-        // Update connection status
-        function updateStatus(connected) {
-            const status = document.getElementById('status');
-            if (connected) {
-                status.innerHTML = `
-                    <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span class="text-gray-400">Connecté</span>
-                `;
-            } else {
-                status.innerHTML = `
-                    <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
-                    <span class="text-gray-400">Reconnexion...</span>
-                `;
-            }
-        }
+function addThinking(){
+  const box=$('messages');
+  const color=COLORS[currentAgent]||'#64748b',icon=ICONS[currentAgent]||'bot';
+  const d=document.createElement('div');d.className='msg-wrap msg-ai';
+  d.innerHTML=`<div class="avatar" style="background:${color}22;border:1px solid ${color}33"><i data-lucide="${icon}" style="width:13px;height:13px;color:${color}"></i></div><div class="thinking"><div class="tdots"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div><span class="tlabel">Réflexion en cours...</span></div>`;
+  box.appendChild(d);box.scrollTop=box.scrollHeight;lucide.createIcons();
+  const states=['Réflexion en cours...','Analyse du contexte...','Génération de la réponse...','Finalisation...'];
+  let i=0;d._iv=setInterval(()=>{i=(i+1)%states.length;const l=d.querySelector('.tlabel');if(l)l.textContent=states[i];},1800);
+  const orig=d.remove.bind(d);d.remove=()=>{clearInterval(d._iv);orig();};
+  return d;
+}
 
-        // Handle form submit
-        async function handleSubmit(e) {
-            e.preventDefault();
-            
-            const input = document.getElementById('message-input');
-            const message = input.value.trim();
-            
-            if (!message || isGenerating) return;
-            
-            input.value = '';
-            input.style.height = 'auto';
-            
-            addMessage(message, 'user');
-            showTypingIndicator();
-            
-            isGenerating = true;
-            document.getElementById('stop-btn').classList.remove('hidden');
-            
-            if (isConnected && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'chat',
-                    payload: {
-                        agent: currentAgent,
-                        message: message
-                    }
-                }));
-            } else {
-                try {
-                    const response = await fetch(`/api/chat/${currentAgent}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message })
-                    });
-                    
-                    const data = await response.json();
-                    hideTypingIndicator();
-                    isGenerating = false;
-                    document.getElementById('stop-btn').classList.add('hidden');
-                    
-                    if (data.success) {
-                        addMessage(data.output, 'assistant', data.actions);
-                    } else {
-                        showError(data.error || 'Erreur inconnue');
-                    }
-                } catch (error) {
-                    hideTypingIndicator();
-                    isGenerating = false;
-                    document.getElementById('stop-btn').classList.add('hidden');
-                    showError('Erreur de connexion');
-                }
-            }
-        }
+async function loadCyberData(){await Promise.all([loadCyberM(),loadEvents()]);}
+async function loadCyberM(){
+  try{
+    const r=await fetch(CYBER+'/metrics'),d=await r.json();
+    $('si').textContent=d.inspected_total??0;$('sb').textContent=d.blocked_total??0;
+    $('sip').textContent=d.blocked_ips_count??0;
+    const sev=d.events_by_severity||{};
+    $('se').textContent=(sev.INFO||0)+(sev.WARNING||0)+(sev.CRITICAL||0);
+    $('cyber-sev').innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="display:flex;align-items:center;gap:6px"><span class="dot dot-red"></span>CRITICAL</span><span class="mono" style="font-weight:600;color:var(--red)">${sev.CRITICAL||0}</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="display:flex;align-items:center;gap:6px"><span class="dot dot-amber"></span>WARNING</span><span class="mono" style="font-weight:600;color:var(--amber)">${sev.WARNING||0}</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px;margin-bottom:10px"><span style="display:flex;align-items:center;gap:6px"><span class="dot" style="background:var(--blue)"></span>INFO</span><span class="mono" style="font-weight:600;color:var(--blue)">${sev.INFO||0}</span></div>
+      <div style="padding-top:8px;border-top:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:.04em">TAUX BLOCAGE</div>
+      <div style="background:var(--bg2);border-radius:3px;height:5px;overflow:hidden"><div style="background:var(--red);height:5px;width:${Math.round((d.block_rate||0)*100)}%;transition:width .5s"></div></div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px">${Math.round((d.block_rate||0)*100)}%</div></div>`;
+    const am=d.agents||{};
+    $('cyber-agents').innerHTML=Object.entries(am).map(([id,s])=>{
+      const dc=s.status==='healthy'?'dot-green':s.status==='degraded'?'dot-amber':'dot-red';
+      const bc=s.status==='healthy'?'badge-green':s.status==='degraded'?'badge-amber':'badge-red';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;margin-bottom:6px"><span style="display:flex;align-items:center;gap:6px"><span class="dot ${dc}"></span><span style="text-transform:capitalize">${id}</span></span><span style="display:flex;align-items:center;gap:6px"><span class="mono" style="color:var(--muted);font-size:10px">${s.response_time_ms}ms</span><span class="badge ${bc}">${s.status}</span></span></div>`;
+    }).join('')||'<div style="color:var(--muted);font-size:12px">Aucun agent</div>';
+    $('cyber-mini').innerHTML=`
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--muted)">Statut</span><span class="badge badge-green">actif</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--muted)">Inspectées</span><span class="mono" style="font-size:11px">${d.inspected_total||0}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--red)">Critiques</span><span class="mono" style="font-size:11px;color:var(--red)">${sev.CRITICAL||0}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--muted)">Warnings</span><span class="mono" style="font-size:11px;color:var(--amber)">${sev.WARNING||0}</span></div>`;
+  }catch(e){$('cyber-agents').innerHTML='<div style="color:var(--muted);font-size:12px">CyberDefence hors ligne</div>';}
+}
+async function loadEvents(){
+  const sev=$('sev-filter').value;
+  try{
+    const r=await fetch(CYBER+'/events?limit=50'+(sev?'&severity='+sev:''));
+    const evs=await r.json();
+    if(!evs.length){$('evs').innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px;text-align:center">Aucun événement</div>';return;}
+    $('evs').innerHTML=[...evs].reverse().map(ev=>{
+      const sc='ev-'+ev.severity.toLowerCase();
+      const bc=ev.severity==='CRITICAL'?'badge-red':ev.severity==='WARNING'?'badge-amber':'badge-blue';
+      const t=ev.timestamp?ev.timestamp.substring(11,19):'';
+      return `<div class="event-row ${sc}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><span style="display:flex;align-items:center;gap:5px"><span class="badge ${bc}">${ev.severity}</span><span class="mono" style="font-size:11px;font-weight:600">${ev.event_type}</span></span><span class="mono" style="font-size:10px;color:var(--muted)">${t}</span></div><div style="font-size:12px;color:var(--muted)">${ev.description}</div>${ev.metadata&&Object.keys(ev.metadata).length?`<div style="font-size:10px;color:#475569;margin-top:2px">${Object.entries(ev.metadata).slice(0,3).map(([k,v])=>`${k}: ${v}`).join(' · ')}</div>`:''}</div>`;
+    }).join('');
+  }catch{$('evs').innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">CyberDefence hors ligne</div>';}
+}
 
-        // Stop generation (placeholder - needs backend support)
-        function stopGeneration() {
-            // TODO: Implement abort on backend
-            hideTypingIndicator();
-            isGenerating = false;
-            document.getElementById('stop-btn').classList.add('hidden');
-            addMessage('⏹️ Génération arrêtée', 'assistant');
-        }
+function saveSettings(){localStorage.setItem('la-s',JSON.stringify({ollamaUrl:$('ollama-url').value,temperature:$('temperature').value,maxTokens:$('max-tokens').value,timeout:$('timeout').value}));toast('Sauvegardé','success');}
+function loadSettings(){const s=JSON.parse(localStorage.getItem('la-s')||'{}');if(s.ollamaUrl)$('ollama-url').value=s.ollamaUrl;if(s.temperature)$('temperature').value=s.temperature;if(s.maxTokens)$('max-tokens').value=s.maxTokens;if(s.timeout)$('timeout').value=s.timeout;}
 
-        // Add message to chat
-        function addMessage(content, role, actions = []) {
-            const container = document.getElementById('chat-container');
-            
-            const welcome = container.querySelector('.glass');
-            if (welcome) welcome.remove();
-            
-            content = formatMessage(content);
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
-            
-            const bubbleClass = role === 'user' 
-                ? 'message-user rounded-2xl rounded-tr-md' 
-                : 'message-assistant rounded-2xl rounded-tl-md';
-            
-            let actionsHtml = '';
-            if (actions && actions.length > 0) {
-                actionsHtml = `
-                    <div class="mt-3 pt-3 border-t border-white/10">
-                        <p class="text-xs text-gray-400 mb-2">Actions effectuées:</p>
-                        ${actions.map(a => `
-                            <div class="flex items-center gap-2 text-xs ${a.success ? 'text-green-400' : 'text-red-400'}">
-                                <i data-lucide="${a.success ? 'check-circle' : 'x-circle'}" class="w-3 h-3"></i>
-                                <span>${a.tool}: ${a.action}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-            
-            messageDiv.innerHTML = `
-                <div class="${bubbleClass} px-4 py-3 max-w-[80%]">
-                    <div class="prose prose-invert prose-sm max-w-none">${content}</div>
-                    ${actionsHtml}
-                </div>
-            `;
-            
-            container.appendChild(messageDiv);
-            container.scrollTop = container.scrollHeight;
-            
-            lucide.createIcons();
-        }
+function switchTab(tab){
+  currentTab=tab;
+  ['chat','cyber','settings'].forEach(t=>{$('tab-'+t).className='tab-btn'+(t===tab?' active':'');$('panel-'+t).style.display=t===tab?'':'none';});
+  if(tab==='cyber'){loadCyberData();clearInterval(cyberPoll);cyberPoll=setInterval(loadCyberData,10000);}else clearInterval(cyberPoll);
+  if(tab==='settings'){renderAgentModelConfig();renderAllModelCards();}
+}
 
-        // Format message content
-        function formatMessage(content) {
-            content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-                return `<pre><code class="language-${lang || 'plaintext'}">${escapeHtml(code.trim())}</code></pre>`;
-            });
-            
-            content = content.replace(/`([^`]+)`/g, '<code class="bg-white/10 px-1 rounded">$1</code>');
-            content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            content = content.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-            content = content.replace(/\n/g, '<br>');
-            
-            return content;
-        }
+function connectWS(){
+  const p=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(p+'//'+location.host+'/ws');
+  ws.onopen=()=>{$('ws-dot').className='dot dot-green';$('ws-label').textContent='Connecté';$('ws-label').style.color='#94a3b8';};
+  ws.onclose=()=>{$('ws-dot').className='dot dot-red';$('ws-label').textContent='Déconnecté';setTimeout(connectWS,5000);};
+  ws.onerror=()=>{};
+}
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function showTypingIndicator() {
-            const container = document.getElementById('chat-container');
-            
-            const indicator = document.createElement('div');
-            indicator.id = 'typing-indicator';
-            indicator.className = 'flex justify-start';
-            indicator.innerHTML = `
-                <div class="message-assistant rounded-2xl rounded-tl-md px-4 py-3">
-                    <div class="typing-indicator flex gap-1">
-                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                    </div>
-                </div>
-            `;
-            
-            container.appendChild(indicator);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function hideTypingIndicator() {
-            const indicator = document.getElementById('typing-indicator');
-            if (indicator) indicator.remove();
-        }
-
-        function handleKeyDown(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                document.getElementById('chat-form').dispatchEvent(new Event('submit'));
-            }
-        }
-
-        function clearChat() {
-            const container = document.getElementById('chat-container');
-            container.innerHTML = `
-                <div class="flex justify-center">
-                    <div class="glass rounded-2xl p-6 max-w-md text-center">
-                        <div class="w-16 h-16 rounded-2xl bg-indigo-500/20 flex items-center justify-center mx-auto mb-4">
-                            <i data-lucide="sparkles" class="w-8 h-8 text-indigo-400"></i>
-                        </div>
-                        <h3 class="text-lg font-semibold mb-2">Chat effacé</h3>
-                        <p class="text-gray-400 text-sm">Commence une nouvelle conversation!</p>
-                    </div>
-                </div>
-            `;
-            lucide.createIcons();
-        }
-
-        function showError(message) {
-            addMessage(`❌ ${message}`, 'assistant');
-        }
-
-        function saveSettings() {
-            // Save to localStorage
-            const settings = {
-                ollamaUrl: document.getElementById('ollama-url-input').value,
-                defaultModel: document.getElementById('default-model-select').value
-            };
-            localStorage.setItem('localAgentsSettings', JSON.stringify(settings));
-            closeModal('modal-settings');
-            alert('Paramètres sauvegardés! Redémarre l\'orchestrateur pour appliquer.');
-        }
-    </script>
+document.addEventListener('DOMContentLoaded',()=>{
+  lucide.createIcons();
+  loadAgents();loadSettings();checkLLM();connectWS();
+  loadSystemStats();
+  setInterval(checkLLM,30000);
+  setInterval(loadSystemStats,5000); // refresh GPU/RAM/TPS toutes les 5s
+  const inp=$('msg-input');
+  inp.addEventListener('input',function(){
+    this.style.height='auto';
+    this.style.height=Math.min(this.scrollHeight,120)+'px';
+    const len=this.value.length;
+    const cc=$('char-count');
+    cc.textContent=len;
+    cc.style.color=len>3000?'#f87171':len>1500?'#fbbf24':len>500?'#a78bfa':'#6366f1';
+  });
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+});
+</script>
 </body>
 </html>

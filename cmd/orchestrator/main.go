@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -23,10 +25,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ─────────────────────────────────────────────
-//  Config
-// ─────────────────────────────────────────────
-
 // Config représente la configuration de l'application
 type Config struct {
 	Server struct {
@@ -35,16 +33,13 @@ type Config struct {
 		WebsocketPath string `yaml:"websocket_path"`
 	} `yaml:"server"`
 
-	// Backend LLM : "llamacpp" (défaut) ou "ollama"
 	LLMBackend string `yaml:"llm_backend"`
 
-	// llama-server config (utilisé si llm_backend = "llamacpp")
 	LlamaCpp struct {
-		ServerURL    string `yaml:"server_url"`    // ex: "http://localhost:8081"
-		DefaultModel string `yaml:"default_model"` // nom affiché
+		ServerURL    string `yaml:"server_url"`
+		DefaultModel string `yaml:"default_model"`
 	} `yaml:"llamacpp"`
 
-	// Ollama config (utilisé si llm_backend = "ollama")
 	Ollama struct {
 		BaseURL      string            `yaml:"base_url"`
 		DefaultModel string            `yaml:"default_model"`
@@ -77,14 +72,10 @@ type AgentConfig struct {
 	AllowedPaths []string `yaml:"allowed_paths,omitempty"`
 }
 
-// ─────────────────────────────────────────────
-//  Orchestrator
-// ─────────────────────────────────────────────
-
 // Orchestrator gère tous les agents
 type Orchestrator struct {
 	config      *Config
-	llmClient   llm.LLMClient // ← interface, pas de type concret
+	llmClient   llm.LLMClient
 	agents      map[string]agent.Agent
 	taskQueue   chan *agent.Task
 	results     map[string]*agent.Result
@@ -96,12 +87,11 @@ type Orchestrator struct {
 
 // NewOrchestrator crée un nouvel orchestrateur
 func NewOrchestrator(config *Config) (*Orchestrator, error) {
-	// ── Choisir le backend LLM ──────────────────────────────────────────────
 	var llmClient llm.LLMClient
 
 	backend := config.LLMBackend
 	if backend == "" {
-		backend = "llamacpp" // défaut : llama-server
+		backend = "llamacpp"
 	}
 
 	switch backend {
@@ -125,7 +115,6 @@ func NewOrchestrator(config *Config) (*Orchestrator, error) {
 		return nil, fmt.Errorf("llm_backend inconnu: %q (valeurs: llamacpp, ollama)", backend)
 	}
 
-	// ── Vérifier la connexion ───────────────────────────────────────────────
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := llmClient.Ping(ctx); err != nil {
@@ -152,24 +141,18 @@ func NewOrchestrator(config *Config) (*Orchestrator, error) {
 	return orch, nil
 }
 
-// initAgents initialise tous les agents configurés
 func (o *Orchestrator) initAgents() error {
 	for agentID, agentCfg := range o.config.Agents {
 		if !agentCfg.Enabled {
-			log.Debug().Str("agent", agentID).Msg("Agent désactivé")
 			continue
 		}
 
-		// Charger le prompt système
 		promptContent, err := os.ReadFile(agentCfg.PromptFile)
 		if err != nil {
 			log.Warn().Str("agent", agentID).Err(err).Msg("Prompt introuvable, utilisation du défaut")
 			promptContent = []byte(fmt.Sprintf("Tu es un agent spécialisé: %s", agentID))
 		}
 
-		// Résoudre le nom de modèle
-		// Pour llama.cpp, le modèle chargé est fixe (1 seul à la fois dans llama-server)
-		// On garde le nom pour l'affichage / les logs
 		model := o.config.LlamaCpp.DefaultModel
 		if o.config.LLMBackend == "ollama" {
 			model = o.config.Ollama.DefaultModel
@@ -191,7 +174,6 @@ func (o *Orchestrator) initAgents() error {
 
 		baseAgent := agent.NewBaseAgent(info, string(promptContent), o.llmClient)
 
-		// Ajouter les outils
 		for _, toolName := range agentCfg.Tools {
 			var tool agent.Tool
 			switch toolName {
@@ -214,19 +196,14 @@ func (o *Orchestrator) initAgents() error {
 			}
 			if tool != nil {
 				baseAgent.AddTool(tool)
-				log.Debug().Str("agent", agentID).Str("tool", toolName).Msg("Outil ajouté")
 			}
 		}
 
 		o.agents[agentID] = baseAgent
-		log.Info().Str("agent", agentID).Str("model", model).Int("tools", len(agentCfg.Tools)).Msg("Agent initialisé")
+		log.Info().Str("agent", agentID).Str("model", model).Msg("Agent initialisé")
 	}
 	return nil
 }
-
-// ─────────────────────────────────────────────
-//  Start / workers
-// ─────────────────────────────────────────────
 
 func (o *Orchestrator) Start(ctx context.Context) error {
 	for i := 0; i < o.config.Queue.MaxConcurrent; i++ {
@@ -235,7 +212,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 
 	router := mux.NewRouter()
 
-	// API REST
+	// API REST existante
 	router.HandleFunc("/api/health", o.handleHealth).Methods("GET")
 	router.HandleFunc("/api/agents", o.handleListAgents).Methods("GET")
 	router.HandleFunc("/api/agents/{id}", o.handleGetAgent).Methods("GET")
@@ -243,7 +220,15 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	router.HandleFunc("/api/tasks/{id}", o.handleGetTask).Methods("GET")
 	router.HandleFunc("/api/chat/{agent}", o.handleChat).Methods("POST")
 
-	// Proxy Ollama-like (pour la UI web - redirige vers le bon backend)
+	// ── Model switcher ────────────────────────────────────────────────────
+	router.HandleFunc("/api/model/list", o.handleListAvailableModels).Methods("GET")
+	router.HandleFunc("/api/model/switch", o.handleSwitchModel).Methods("POST")
+	// ── System stats (GPU / RAM / tokens/sec) ─────────────────────────────
+	router.HandleFunc("/api/system/stats", o.handleSystemStats).Methods("GET")
+	router.HandleFunc("/api/llm/tps", o.handleGetTPS).Methods("GET")
+	// ──────────────────────────────────────────────────────────────────────
+
+	// Proxy Ollama-like
 	router.HandleFunc("/api/ollama/models", o.handleModels).Methods("GET")
 	router.HandleFunc("/api/ollama/pull", o.handleOllamaPull).Methods("POST")
 	router.HandleFunc("/api/ollama/delete", o.handleOllamaDelete).Methods("DELETE")
@@ -326,16 +311,12 @@ func (o *Orchestrator) broadcastResult(result *agent.Result) {
 	}
 }
 
-// ─────────────────────────────────────────────
-//  HTTP Handlers
-// ─────────────────────────────────────────────
-
 func (o *Orchestrator) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":     "ok",
-		"agents":     len(o.agents),
-		"version":    "0.2.0",
+		"status":      "ok",
+		"agents":      len(o.agents),
+		"version":     "0.2.0",
 		"llm_backend": o.config.LLMBackend,
 	})
 }
@@ -413,15 +394,67 @@ func (o *Orchestrator) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	result, err := agentInstance.Execute(r.Context(), task)
+	elapsed := time.Since(start).Seconds()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(result)
+
+	// Récupérer le TPS depuis llama-server /metrics juste après la génération
+	tps := fetchTPS()
+
+	// Wrapper enrichi avec elapsed + tps
+	type enrichedResult struct {
+		TaskID      string      `json:"task_id"`
+		AgentID     string      `json:"agent_id"`
+		Success     bool        `json:"success"`
+		Output      string      `json:"output"`
+		Actions     interface{} `json:"actions,omitempty"`
+		Error       string      `json:"error,omitempty"`
+		ElapsedSec  float64     `json:"elapsed_sec"`
+		TokensPerSec float64    `json:"tokens_per_sec"`
+	}
+
+	json.NewEncoder(w).Encode(enrichedResult{
+		TaskID:      result.TaskID,
+		AgentID:     result.AgentID,
+		Success:     result.Success,
+		Output:      result.Output,
+		Actions:     result.Actions,
+		Error:       result.Error,
+		ElapsedSec:  elapsed,
+		TokensPerSec: tps,
+	})
 }
 
-// handleModels unifie la liste des modèles (quel que soit le backend)
+// fetchTPS lit predicted_tokens_seconds depuis /metrics de llama-server
+func fetchTPS() float64 {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get("http://127.0.0.1:8081/metrics")
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "llamacpp:predicted_tokens_seconds") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				if v, err := strconv.ParseFloat(parts[len(parts)-1], 64); err == nil && v > 0 {
+					return v
+				}
+			}
+		}
+	}
+	return 0
+}
+
 func (o *Orchestrator) handleModels(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -433,7 +466,6 @@ func (o *Orchestrator) handleModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format compatible avec la UI web existante
 	modelList := make([]map[string]string, len(models))
 	for i, m := range models {
 		modelList[i] = map[string]string{"name": m}
@@ -441,7 +473,6 @@ func (o *Orchestrator) handleModels(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"models": modelList})
 }
 
-// handleOllamaPull – non pertinent avec llama.cpp, renvoie une explication
 func (o *Orchestrator) handleOllamaPull(w http.ResponseWriter, r *http.Request) {
 	if o.config.LLMBackend == "ollama" {
 		resp, err := http.Post(o.config.Ollama.BaseURL+"/api/pull", "application/json", r.Body)
@@ -493,8 +524,6 @@ func (o *Orchestrator) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	o.wsClients[conn] = true
 	o.wsClientsMu.Unlock()
 
-	log.Info().Str("remote", conn.RemoteAddr().String()).Msg("Client WebSocket connecté")
-
 	defer func() {
 		o.wsClientsMu.Lock()
 		delete(o.wsClients, conn)
@@ -544,10 +573,6 @@ func (o *Orchestrator) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-
-// ─────────────────────────────────────────────
-//  main
-// ─────────────────────────────────────────────
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix

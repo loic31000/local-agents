@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Agents - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #252525;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .message-user {
+            background: var(--accent);
+        }
+        
+        .message-assistant {
+            background: var(--bg-tertiary);
+        }
+        
+        .typing-indicator span {
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-4px); }
+        }
+        
+        .agent-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.3);
+        }
+        
+        pre code {
+            display: block;
+            padding: 1rem;
+            background: #1e1e1e;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div id="app" class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-[#1a1a1a] border-r border-white/10 flex flex-col">
+            <!-- Logo -->
+            <div class="p-4 border-b border-white/10">
+                <h1 class="text-xl font-bold flex items-center gap-2">
+                    <i data-lucide="bot" class="w-6 h-6 text-indigo-500"></i>
+                    Local Agents
+                </h1>
+                <p class="text-xs text-gray-500 mt-1">100% Local avec Ollama</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-white/10">
+                <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn active flex-1 py-2 text-sm font-medium transition">
+                    💬 Chat
+                </button>
+                <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn flex-1 py-2 text-sm font-medium transition hover:bg-white/5">
+                    ⚙️ Config
+                </button>
+            </div>
+            
+            <!-- Agents List (Chat Tab) -->
+            <div id="panel-chat" class="flex-1 overflow-y-auto p-4 scrollbar-thin">
+                <h2 class="text-xs font-semibold text-gray-500 uppercase mb-3">Agents</h2>
+                <div id="agents-list" class="space-y-2">
+                    <!-- Agents loaded dynamically -->
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div id="panel-settings" class="flex-1 overflow-y-auto p-4 scrollbar-thin hidden">
+                <h2 class="text-xs font-semibold text-gray-500 uppercase mb-3">Modèles Ollama</h2>
+                <div id="models-list" class="space-y-2 mb-4">
+                    <!-- Models loaded dynamically -->
+                </div>
+                
+                <button onclick="openModelDownload()" class="w-full py-2 px-3 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    Télécharger un modèle
+                </button>
+
+                <h2 class="text-xs font-semibold text-gray-500 uppercase mb-3 mt-6">Modèles populaires</h2>
+                <div class="space-y-2 text-sm">
+                    <button onclick="downloadModel('qwen2:1.5b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
+                        <div class="font-medium">qwen2:1.5b</div>
+                        <div class="text-xs text-gray-500">~1 GB • Rapide sur CPU</div>
+                    </button>
+                    <button onclick="downloadModel('llama3.2:3b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
+                        <div class="font-medium">llama3.2:3b</div>
+                        <div class="text-xs text-gray-500">~2 GB • Équilibré</div>
+                    </button>
+                    <button onclick="downloadModel('deepseek-coder:6.7b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
+                        <div class="font-medium">deepseek-coder:6.7b</div>
+                        <div class="text-xs text-gray-500">~4 GB • Spécialisé code</div>
+                    </button>
+                    <button onclick="downloadModel('llama3.1:8b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
+                        <div class="font-medium">llama3.1:8b</div>
+                        <div class="text-xs text-gray-500">~4.7 GB • Polyvalent</div>
+                    </button>
+                    <button onclick="downloadModel('mistral:7b')" class="w-full text-left p-2 hover:bg-white/5 rounded-lg transition">
+                        <div class="font-medium">mistral:7b</div>
+                        <div class="text-xs text-gray-500">~4 GB • Haute qualité</div>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Status -->
+            <div class="p-4 border-t border-white/10">
+                <div id="status" class="flex items-center gap-2 text-sm">
+                    <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                    <span class="text-gray-400">Connexion...</span>
+                </div>
+                <div id="ollama-status" class="flex items-center gap-2 text-sm mt-2">
+                    <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                    <span class="text-gray-400">Ollama: vérification...</span>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col">
+            <!-- Header -->
+            <header class="h-14 border-b border-white/10 flex items-center justify-between px-6">
+                <div class="flex items-center gap-3">
+                    <div id="current-agent-icon" class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                        <i data-lucide="code-2" class="w-4 h-4 text-indigo-400"></i>
+                    </div>
+                    <div>
+                        <h2 id="current-agent-name" class="font-semibold">Agent Codeur</h2>
+                        <div class="flex items-center gap-2">
+                            <p id="current-agent-model" class="text-xs text-gray-500">qwen2:1.5b</p>
+                            <button onclick="openModelSelector()" class="text-xs text-indigo-400 hover:text-indigo-300 transition">
+                                (changer)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="stopGeneration()" id="stop-btn" class="hidden p-2 hover:bg-red-500/20 rounded-lg transition text-red-400" title="Arrêter">
+                        <i data-lucide="square" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="clearChat()" class="p-2 hover:bg-white/5 rounded-lg transition" title="Effacer">
+                        <i data-lucide="trash-2" class="w-4 h-4 text-gray-400"></i>
+                    </button>
+                    <button onclick="openSettings()" class="p-2 hover:bg-white/5 rounded-lg transition" title="Paramètres">
+                        <i data-lucide="settings" class="w-4 h-4 text-gray-400"></i>
+                    </button>
+                </div>
+            </header>
+            
+            <!-- Chat Area -->
+            <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
+                <!-- Welcome message -->
+                <div class="flex justify-center">
+                    <div class="glass rounded-2xl p-6 max-w-md text-center">
+                        <div class="w-16 h-16 rounded-2xl bg-indigo-500/20 flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="sparkles" class="w-8 h-8 text-indigo-400"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Bienvenue!</h3>
+                        <p class="text-gray-400 text-sm">
+                            Sélectionne un agent et commence à discuter. 
+                            Va dans ⚙️ Config pour gérer les modèles Ollama.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="p-4 border-t border-white/10">
+                <form id="chat-form" class="flex gap-3">
+                    <div class="flex-1 relative">
+                        <textarea 
+                            id="message-input"
+                            placeholder="Écris ton message... (Shift+Enter pour nouvelle ligne)"
+                            class="w-full bg-[#252525] rounded-xl px-4 py-3 pr-12 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
+                            rows="1"
+                            onkeydown="handleKeyDown(event)"
+                        ></textarea>
+                        <button 
+                            type="submit"
+                            id="send-btn"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </form>
+                <p class="text-xs text-gray-500 mt-2 text-center">
+                    Modèle actif: <span id="active-model-label">qwen2:1.5b</span> • Réponses générées localement
+                </p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal: Télécharger un modèle -->
+    <div id="modal-download" class="modal">
+        <div class="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-md mx-4 border border-white/10">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Télécharger un modèle</h3>
+                <button onclick="closeModal('modal-download')" class="p-1 hover:bg-white/10 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <label class="text-sm text-gray-400 mb-2 block">Nom du modèle</label>
+                <input 
+                    type="text" 
+                    id="model-name-input"
+                    placeholder="ex: llama3.1:8b, mistral:7b, codellama:13b"
+                    class="w-full bg-[#252525] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                >
+                <p class="text-xs text-gray-500 mt-2">
+                    Trouve plus de modèles sur <a href="https://ollama.com/library" target="_blank" class="text-indigo-400 hover:underline">ollama.com/library</a>
+                </p>
+            </div>
+
+            <div id="download-progress" class="hidden mb-4">
+                <div class="flex items-center justify-between text-sm mb-2">
+                    <span id="download-status">Téléchargement...</span>
+                    <span id="download-percent">0%</span>
+                </div>
+                <div class="h-2 bg-[#252525] rounded-full overflow-hidden">
+                    <div id="download-bar" class="progress-bar h-full bg-indigo-500 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="closeModal('modal-download')" class="flex-1 py-2 px-4 bg-white/5 hover:bg-white/10 rounded-lg transition">
+                    Annuler
+                </button>
+                <button onclick="startDownload()" id="download-btn" class="flex-1 py-2 px-4 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition font-medium">
+                    Télécharger
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Sélectionner un modèle pour l'agent -->
+    <div id="modal-model-selector" class="modal">
+        <div class="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-md mx-4 border border-white/10">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Changer de modèle</h3>
+                <button onclick="closeModal('modal-model-selector')" class="p-1 hover:bg-white/10 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <p class="text-sm text-gray-400 mb-4">Sélectionne un modèle pour l'agent <strong id="selector-agent-name">coder</strong></p>
+            
+            <div id="selector-models-list" class="space-y-2 max-h-64 overflow-y-auto">
+                <!-- Models list -->
+            </div>
+            
+            <div class="mt-4 pt-4 border-t border-white/10">
+                <button onclick="openModelDownload(); closeModal('modal-model-selector')" class="w-full py-2 text-sm text-indigo-400 hover:text-indigo-300 transition">
+                    + Télécharger un nouveau modèle
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Paramètres -->
+    <div id="modal-settings" class="modal">
+        <div class="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-lg mx-4 border border-white/10">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Paramètres</h3>
+                <button onclick="closeModal('modal-settings')" class="p-1 hover:bg-white/10 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="text-sm text-gray-400 mb-2 block">URL Ollama</label>
+                    <input 
+                        type="text" 
+                        id="ollama-url-input"
+                        value="http://localhost:11434"
+                        class="w-full bg-[#252525] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    >
+                </div>
+
+                <div>
+                    <label class="text-sm text-gray-400 mb-2 block">Modèle par défaut</label>
+                    <select id="default-model-select" class="w-full bg-[#252525] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+                        <!-- Options filled dynamically -->
+                    </select>
+                </div>
+
+                <div>
+                    <h4 class="text-sm font-medium mb-2">Modèles installés</h4>
+                    <div id="settings-models-list" class="space-y-2 max-h-48 overflow-y-auto">
+                        <!-- Models list -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeModal('modal-settings')" class="flex-1 py-2 px-4 bg-white/5 hover:bg-white/10 rounded-lg transition">
+                    Fermer
+                </button>
+                <button onclick="saveSettings()" class="flex-1 py-2 px-4 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition font-medium">
+                    Sauvegarder
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentAgent = 'coder';
+        let agents = [];
+        let models = [];
+        let ws = null;
+        let isConnected = false;
+        let isGenerating = false;
+        let currentTab = 'chat';
+        
+        // Agent icons mapping
+        const agentIcons = {
+            coder: 'code-2',
+            files: 'folder',
+            email: 'mail',
+            social: 'share-2',
+            discord: 'message-circle'
+        };
+        
+        const agentColors = {
+            coder: 'indigo',
+            files: 'orange',
+            email: 'blue',
+            social: 'pink',
+            discord: 'purple'
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadAgents();
+            loadModels();
+            connectWebSocket();
+            checkOllamaStatus();
+            
+            document.getElementById('chat-form').addEventListener('submit', handleSubmit);
+            
+            // Auto-resize textarea
+            const textarea = document.getElementById('message-input');
+            textarea.addEventListener('input', () => {
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+            });
+
+            // Check Ollama status periodically
+            setInterval(checkOllamaStatus, 30000);
+        });
+
+        // Tab switching
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            
+            document.getElementById('panel-chat').classList.toggle('hidden', tab !== 'chat');
+            document.getElementById('panel-settings').classList.toggle('hidden', tab !== 'settings');
+
+            if (tab === 'settings') {
+                loadModels();
+            }
+        }
+
+        // Load models from Ollama
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/ollama/models');
+                const data = await response.json();
+                models = data.models || [];
+                renderModelsList();
+            } catch (error) {
+                console.error('Error loading models:', error);
+                // Try direct Ollama API
+                try {
+                    const response = await fetch('http://localhost:11434/api/tags');
+                    const data = await response.json();
+                    models = data.models || [];
+                    renderModelsList();
+                } catch (e) {
+                    console.error('Direct Ollama fetch failed:', e);
+                }
+            }
+        }
+
+        // Render models list
+        function renderModelsList() {
+            const container = document.getElementById('models-list');
+            if (!container) return;
+
+            if (models.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4 text-gray-500 text-sm">
+                        Aucun modèle installé
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = models.map(model => {
+                const size = model.size ? formatBytes(model.size) : 'N/A';
+                return `
+                    <div class="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                        <div>
+                            <div class="font-medium text-sm">${model.name}</div>
+                            <div class="text-xs text-gray-500">${size}</div>
+                        </div>
+                        <button onclick="deleteModel('${model.name}')" class="p-1 hover:bg-red-500/20 rounded text-red-400 transition" title="Supprimer">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+
+            // Update settings modal
+            const settingsContainer = document.getElementById('settings-models-list');
+            if (settingsContainer) {
+                settingsContainer.innerHTML = container.innerHTML;
+                lucide.createIcons();
+            }
+
+            // Update default model select
+            const select = document.getElementById('default-model-select');
+            if (select) {
+                select.innerHTML = models.map(m => 
+                    `<option value="${m.name}">${m.name}</option>`
+                ).join('');
+            }
+        }
+
+        // Check Ollama status
+        async function checkOllamaStatus() {
+            const statusEl = document.getElementById('ollama-status');
+            try {
+                const response = await fetch('http://localhost:11434/api/tags');
+                if (response.ok) {
+                    const data = await response.json();
+                    const count = data.models?.length || 0;
+                    statusEl.innerHTML = `
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                        <span class="text-gray-400">Ollama: ${count} modèle(s)</span>
+                    `;
+                }
+            } catch (error) {
+                statusEl.innerHTML = `
+                    <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                    <span class="text-gray-400">Ollama: hors ligne</span>
+                `;
+            }
+        }
+
+        // Format bytes
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Modal functions
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function openModelDownload() {
+            document.getElementById('model-name-input').value = '';
+            document.getElementById('download-progress').classList.add('hidden');
+            document.getElementById('download-btn').disabled = false;
+            openModal('modal-download');
+        }
+
+        function openModelSelector() {
+            const container = document.getElementById('selector-models-list');
+            document.getElementById('selector-agent-name').textContent = currentAgent;
+            
+            container.innerHTML = models.map(model => `
+                <button onclick="selectModelForAgent('${model.name}')" class="w-full text-left p-3 hover:bg-white/5 rounded-lg transition flex items-center justify-between">
+                    <div>
+                        <div class="font-medium">${model.name}</div>
+                        <div class="text-xs text-gray-500">${formatBytes(model.size || 0)}</div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-500"></i>
+                </button>
+            `).join('');
+            
+            lucide.createIcons();
+            openModal('modal-model-selector');
+        }
+
+        function openSettings() {
+            loadModels();
+            openModal('modal-settings');
+        }
+
+        // Download model
+        async function downloadModel(modelName) {
+            document.getElementById('model-name-input').value = modelName;
+            openModal('modal-download');
+        }
+
+        async function startDownload() {
+            const modelName = document.getElementById('model-name-input').value.trim();
+            if (!modelName) {
+                alert('Entre un nom de modèle');
+                return;
+            }
+
+            const progressDiv = document.getElementById('download-progress');
+            const statusEl = document.getElementById('download-status');
+            const percentEl = document.getElementById('download-percent');
+            const barEl = document.getElementById('download-bar');
+            const downloadBtn = document.getElementById('download-btn');
+
+            progressDiv.classList.remove('hidden');
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = 'Téléchargement...';
+
+            try {
+                const response = await fetch('http://localhost:11434/api/pull', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: modelName, stream: true })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const lines = decoder.decode(value).split('\n').filter(l => l.trim());
+                    for (const line of lines) {
+                        try {
+                            const data = JSON.parse(line);
+                            
+                            if (data.status) {
+                                statusEl.textContent = data.status;
+                            }
+                            
+                            if (data.completed && data.total) {
+                                const percent = Math.round((data.completed / data.total) * 100);
+                                percentEl.textContent = percent + '%';
+                                barEl.style.width = percent + '%';
+                            }
+
+                            if (data.status === 'success') {
+                                statusEl.textContent = '✅ Téléchargement terminé!';
+                                percentEl.textContent = '100%';
+                                barEl.style.width = '100%';
+                                
+                                setTimeout(() => {
+                                    closeModal('modal-download');
+                                    loadModels();
+                                }, 1500);
+                            }
+                        } catch (e) {}
+                    }
+                }
+            } catch (error) {
+                statusEl.textContent = '❌ Erreur: ' + error.message;
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = 'Réessayer';
+            }
+        }
+
+        // Delete model
+        async function deleteModel(modelName) {
+            if (!confirm(`Supprimer le modèle "${modelName}" ?`)) return;
+
+            try {
+                const response = await fetch('http://localhost:11434/api/delete', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: modelName })
+                });
+
+                if (response.ok) {
+                    loadModels();
+                } else {
+                    alert('Erreur lors de la suppression');
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        // Select model for agent (visual only - need backend update for persistence)
+        function selectModelForAgent(modelName) {
+            document.getElementById('current-agent-model').textContent = modelName;
+            document.getElementById('active-model-label').textContent = modelName;
+            closeModal('modal-model-selector');
+            
+            // Store in localStorage for persistence
+            const agentModels = JSON.parse(localStorage.getItem('agentModels') || '{}');
+            agentModels[currentAgent] = modelName;
+            localStorage.setItem('agentModels', JSON.stringify(agentModels));
+        }
+
+        // Load agents from API
+        async function loadAgents() {
+            try {
+                const response = await fetch('/api/agents');
+                agents = await response.json();
+                renderAgentsList();
+                
+                if (agents.length > 0) {
+                    selectAgent(agents[0].id);
+                }
+            } catch (error) {
+                console.error('Error loading agents:', error);
+            }
+        }
+
+        // Render agents list
+        function renderAgentsList() {
+            const container = document.getElementById('agents-list');
+            const agentModels = JSON.parse(localStorage.getItem('agentModels') || '{}');
+
+            container.innerHTML = agents.map(agent => {
+                const displayModel = agentModels[agent.id] || agent.model;
+                return `
+                    <button 
+                        onclick="selectAgent('${agent.id}')"
+                        class="agent-card w-full p-3 rounded-xl text-left transition ${
+                            agent.id === currentAgent ? 'bg-indigo-500/20 border border-indigo-500/30' : 'hover:bg-white/5'
+                        }"
+                    >
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-${agentColors[agent.id] || 'gray'}-500/20 flex items-center justify-center">
+                                <i data-lucide="${agentIcons[agent.id] || 'bot'}" class="w-5 h-5 text-${agentColors[agent.id] || 'gray'}-400"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium truncate">${agent.name}</p>
+                                <p class="text-xs text-gray-500 truncate">${displayModel}</p>
+                            </div>
+                            ${agent.enabled ? 
+                                '<span class="w-2 h-2 rounded-full bg-green-500"></span>' : 
+                                '<span class="w-2 h-2 rounded-full bg-gray-500"></span>'
+                            }
+                        </div>
+                    </button>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+
+        // Select agent
+        function selectAgent(agentId) {
+            currentAgent = agentId;
+            const agent = agents.find(a => a.id === agentId);
+            const agentModels = JSON.parse(localStorage.getItem('agentModels') || '{}');
+            
+            if (agent) {
+                document.getElementById('current-agent-name').textContent = agent.name;
+                const displayModel = agentModels[agentId] || agent.model;
+                document.getElementById('current-agent-model').textContent = displayModel;
+                document.getElementById('active-model-label').textContent = displayModel;
+            }
+            
+            renderAgentsList();
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onopen = () => {
+                isConnected = true;
+                updateStatus(true);
+            };
+            
+            ws.onclose = () => {
+                isConnected = false;
+                updateStatus(false);
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWSMessage(data);
+            };
+        }
+
+        // Handle WebSocket messages
+        function handleWSMessage(data) {
+            if (data.type === 'response') {
+                hideTypingIndicator();
+                isGenerating = false;
+                document.getElementById('stop-btn').classList.add('hidden');
+                addMessage(data.result.output, 'assistant', data.result.actions);
+            }
+        }
+
+        // Update connection status
+        function updateStatus(connected) {
+            const status = document.getElementById('status');
+            if (connected) {
+                status.innerHTML = `
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                    <span class="text-gray-400">Connecté</span>
+                `;
+            } else {
+                status.innerHTML = `
+                    <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                    <span class="text-gray-400">Reconnexion...</span>
+                `;
+            }
+        }
+
+        // Handle form submit
+        async function handleSubmit(e) {
+            e.preventDefault();
+            
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (!message || isGenerating) return;
+            
+            input.value = '';
+            input.style.height = 'auto';
+            
+            addMessage(message, 'user');
+            showTypingIndicator();
+            
+            isGenerating = true;
+            document.getElementById('stop-btn').classList.remove('hidden');
+            
+            if (isConnected && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'chat',
+                    payload: {
+                        agent: currentAgent,
+                        message: message
+                    }
+                }));
+            } else {
+                try {
+                    const response = await fetch(`/api/chat/${currentAgent}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message })
+                    });
+                    
+                    const data = await response.json();
+                    hideTypingIndicator();
+                    isGenerating = false;
+                    document.getElementById('stop-btn').classList.add('hidden');
+                    
+                    if (data.success) {
+                        addMessage(data.output, 'assistant', data.actions);
+                    } else {
+                        showError(data.error || 'Erreur inconnue');
+                    }
+                } catch (error) {
+                    hideTypingIndicator();
+                    isGenerating = false;
+                    document.getElementById('stop-btn').classList.add('hidden');
+                    showError('Erreur de connexion');
+                }
+            }
+        }
+
+        // Stop generation (placeholder - needs backend support)
+        function stopGeneration() {
+            // TODO: Implement abort on backend
+            hideTypingIndicator();
+            isGenerating = false;
+            document.getElementById('stop-btn').classList.add('hidden');
+            addMessage('⏹️ Génération arrêtée', 'assistant');
+        }
+
+        // Add message to chat
+        function addMessage(content, role, actions = []) {
+            const container = document.getElementById('chat-container');
+            
+            const welcome = container.querySelector('.glass');
+            if (welcome) welcome.remove();
+            
+            content = formatMessage(content);
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+            
+            const bubbleClass = role === 'user' 
+                ? 'message-user rounded-2xl rounded-tr-md' 
+                : 'message-assistant rounded-2xl rounded-tl-md';
+            
+            let actionsHtml = '';
+            if (actions && actions.length > 0) {
+                actionsHtml = `
+                    <div class="mt-3 pt-3 border-t border-white/10">
+                        <p class="text-xs text-gray-400 mb-2">Actions effectuées:</p>
+                        ${actions.map(a => `
+                            <div class="flex items-center gap-2 text-xs ${a.success ? 'text-green-400' : 'text-red-400'}">
+                                <i data-lucide="${a.success ? 'check-circle' : 'x-circle'}" class="w-3 h-3"></i>
+                                <span>${a.tool}: ${a.action}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="${bubbleClass} px-4 py-3 max-w-[80%]">
+                    <div class="prose prose-invert prose-sm max-w-none">${content}</div>
+                    ${actionsHtml}
+                </div>
+            `;
+            
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            lucide.createIcons();
+        }
+
+        // Format message content
+        function formatMessage(content) {
+            content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                return `<pre><code class="language-${lang || 'plaintext'}">${escapeHtml(code.trim())}</code></pre>`;
+            });
+            
+            content = content.replace(/`([^`]+)`/g, '<code class="bg-white/10 px-1 rounded">$1</code>');
+            content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            content = content.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            content = content.replace(/\n/g, '<br>');
+            
+            return content;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showTypingIndicator() {
+            const container = document.getElementById('chat-container');
+            
+            const indicator = document.createElement('div');
+            indicator.id = 'typing-indicator';
+            indicator.className = 'flex justify-start';
+            indicator.innerHTML = `
+                <div class="message-assistant rounded-2xl rounded-tl-md px-4 py-3">
+                    <div class="typing-indicator flex gap-1">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(indicator);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        function handleKeyDown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('chat-form').dispatchEvent(new Event('submit'));
+            }
+        }
+
+        function clearChat() {
+            const container = document.getElementById('chat-container');
+            container.innerHTML = `
+                <div class="flex justify-center">
+                    <div class="glass rounded-2xl p-6 max-w-md text-center">
+                        <div class="w-16 h-16 rounded-2xl bg-indigo-500/20 flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="sparkles" class="w-8 h-8 text-indigo-400"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Chat effacé</h3>
+                        <p class="text-gray-400 text-sm">Commence une nouvelle conversation!</p>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        function showError(message) {
+            addMessage(`❌ ${message}`, 'assistant');
+        }
+
+        function saveSettings() {
+            // Save to localStorage
+            const settings = {
+                ollamaUrl: document.getElementById('ollama-url-input').value,
+                defaultModel: document.getElementById('default-model-select').value
+            };
+            localStorage.setItem('localAgentsSettings', JSON.stringify(settings));
+            closeModal('modal-settings');
+            alert('Paramètres sauvegardés! Redémarre l\'orchestrateur pour appliquer.');
+        }
+    </script>
+</body>
+</html>
