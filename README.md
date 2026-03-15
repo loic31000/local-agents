@@ -16,47 +16,17 @@
 
 ## 📸 Interface
 
-### Chat principal
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Local Agents  ● Connecté  ● Qwen2.5-32B  GPU 42%  68°C   ⚡CPU│
-├──────────┬──────────────────────────────────────────────────────┤
-│  AGENTS  │  Chat    CyberDefence    Paramètres                  │
-│ ▶ Coder  │                                                      │
-│   Files  │  ┌────────────────────────────────────────────────┐  │
-│          │  │                                                │  │
-│ MODÈLE   │  │   Sélectionne un agent et envoie un message   │  │
-│ Qwen2.5  │  │                                                │  │
-│ ████ 20% │  └────────────────────────────────────────────────┘  │
-│ VRAM 7GB │                                                      │
-│          │  ┌────────────────────────────────────────────────┐  │
-│ SYSTÈME  │  │  Message...                               0    │  │
-│ GPU  42% │  │                              [  Envoyer  →  ] │  │
-│ VRAM 6/8 │  └────────────────────────────────────────────────┘  │
-│ RAM  18G │                                                      │
-│ 68°C     │                                                      │
-└──────────┴──────────────────────────────────────────────────────┘
-```
+### Chat — Monitoring GPU en temps réel
 
-### Switcher de modèle
-```
-┌─────────────────────────────────────────────────────┐
-│  🖥 Changer de modèle                               │
-│  Clique ⚡ Charger — redémarre automatiquement       │
-├─────────────────────────────────────────────────────┤
-│  🟢 Llama-3.2-3B   Rapide    2GB VRAM   ctx 16k    │
-│  Ultra rapide, idéal pour les tâches simples        │
-│  [● Actif]                                          │
-├─────────────────────────────────────────────────────┤
-│  🟡 Mistral-7B     Équilibré  5GB VRAM  ctx 16k    │
-│  Excellent équilibre vitesse/qualité, bon français  │
-│  [⚡ Charger]                                       │
-├─────────────────────────────────────────────────────┤
-│  🟣 Qwen2.5-32B    Meilleur  7GB+11GB  ctx 8k      │
-│  Niveau GPT-4o, raisonnement avancé et code        │
-│  [⚡ Charger]                                       │
-└─────────────────────────────────────────────────────┘
-```
+![Dashboard](docs/screenshots/dashboard.png)
+
+> Chat avec l'agent Files sur Mistral-7B — GPU 28%, VRAM 7.0/8.0GB, 39°C, temps de réponse 5.3s
+
+### Paramètres — Switcher de modèle
+
+![Settings](docs/screenshots/settings.png)
+
+> Switch entre Llama-3.2-3B, Mistral-7B (actif ●) et Qwen2.5-32B en 1 clic — barres vitesse/qualité, VRAM, RAM DDR5
 
 ---
 
@@ -115,6 +85,7 @@ C:\Users\<user>\AppData\Local\Ollama\models\
 ```powershell
 git clone https://github.com/loic31000/local-agents.git
 cd local-agents
+git checkout Romano-branche
 ```
 
 ### 3. Télécharger llama.cpp
@@ -127,7 +98,6 @@ Extrais tout dans `C:\Users\<user>\local-agents\`
 ### 4. Télécharger un modèle
 
 ```powershell
-# Exemple avec Mistral-7B depuis HuggingFace (bartowski)
 # Place le .gguf dans :
 C:\Users\<user>\AppData\Local\Ollama\models\
 ```
@@ -138,7 +108,7 @@ C:\Users\<user>\AppData\Local\Ollama\models\
 .\run_agent.bat
 ```
 
-> C'est tout ! Le script détecte llama-server, le lance si nécessaire, compile Go et ouvre l'interface.
+> C'est tout ! Le script détecte llama-server, le lance si nécessaire, compile Go et ouvre l'interface sur **http://localhost:8080**
 
 ---
 
@@ -164,12 +134,11 @@ local-agents/
 │       ├── git.go               # Commandes git
 │       ├── terminal.go          # Exécution commandes
 │       └── vscode.go            # Contrôle VSCode
-├── web/
-│   └── static/
-│       └── index.html           # Interface web complète
+├── web/static/index.html        # Interface web complète
 ├── prompts/
 │   ├── coder.md                 # Prompt agent codeur
 │   └── files.md                 # Prompt agent fichiers
+├── docs/screenshots/            # Captures d'écran
 ├── bridge.js                    # Bridge Node.js → VSCode (port 3333)
 ├── config.yaml                  # Configuration
 ├── run_agent.bat                # 🚀 Lance tout en 1 commande
@@ -184,7 +153,7 @@ local-agents/
 `config.yaml` — les options principales :
 
 ```yaml
-llm_backend: "llamacpp"          # ou "ollama"
+llm_backend: "llamacpp"
 
 llamacpp:
   server_url: "http://localhost:8081"
@@ -217,23 +186,22 @@ agents:
 | `/api/model/list` | GET | Modèles disponibles |
 | `/api/model/switch` | POST | Changer de modèle |
 | `/api/system/stats` | GET | Stats GPU/RAM/TPS |
+| `/api/llm/tps` | GET | Tokens/sec en temps réel |
 | `/ws` | WebSocket | Temps réel |
 
 ---
 
 ## 💬 Utilisation des agents
 
-### Agent Coder
+### Format tool calling
 
-L'agent coder utilise le format tool suivant :
-
-```
+````
 ```tool
 {"tool": "filesystem", "params": {"action": "read", "path": "C:\\Users\\romano\\local-agents\\config.yaml"}}
 ```
-```
+````
 
-**Actions disponibles :**
+### Actions disponibles
 
 ```
 filesystem → read, write, list, delete
@@ -255,21 +223,19 @@ vscode     → open, read, write, replace, diff
 
 ## 📊 Monitoring en temps réel
 
-Le widget SYSTÈME dans la sidebar affiche toutes les 5 secondes :
+Le widget SYSTÈME affiche toutes les 5 secondes :
 
 ```
-RTX 3070
-GPU    ████░░░░  42%
-VRAM   ███████░  6.1 / 7.8 GB
-RAM    ██████░░  18.2 / 32 GB
-Temp   68°C  🟢
-KV     ████░░░░  45%
-       ⚡ 4.27 t/s
+GeForce RTX 3070
+GPU    ██░░░░░░  16%
+VRAM   ███████░  7.1 / 8.0 GB
+RAM    ████░░░░  13.5 / 31.8 GB
+Temp   36°C  🟢
 ```
 
-Chaque réponse affiche aussi :
+Chaque réponse affiche :
 ```
-⏱ 12.3s    ⚡ 4.27 t/s
+⏱ 5.3s    ⚡ 4.27 t/s
 ```
 
 ---
@@ -278,73 +244,39 @@ Chaque réponse affiche aussi :
 
 | Service | Port | Commande |
 |---|---|---|
-| Interface web | 8080 | `run_agent.bat` |
+| Interface web | 8080 | `run_agent.bat` (auto) |
 | llama-server | 8081 | `start_llama.bat` ou auto |
 | VSCode bridge | 3333 | `start_bridge.bat` |
 
 ---
 
-## 🔄 Switcher de modèle
+## 🔄 Switch de modèle
 
-Depuis l'interface (Settings → Modèle GPU actif) :
+Depuis **Paramètres → Modèle GPU actif** :
 
-1. Clique sur **⚡ Charger** sur la carte du modèle voulu
-2. Attends ~10s (3B) ou ~60s (32B) pendant le chargement
-3. Le modèle est actif — badge **● ACTIF** vert
+1. Clique **⚡ Charger ce modèle**
+2. Attends ~10s (3B) ou ~60s (32B)
+3. Badge **● Actif** vert confirmé
 
 Le serveur redémarre automatiquement sans quitter l'interface.
-
----
-
-## 🛠️ Développement
-
-```powershell
-# Compiler manuellement
-go build -o orchestrator.exe .\cmd\orchestrator\
-
-# Lancer en mode dev
-$env:PATH = "C:\Program Files\Go\bin;" + $env:PATH
-.\run_agent.bat
-
-# Voir les logs llama-server
-cat logs\llama-server.log
-```
 
 ---
 
 ## 📝 Changelog
 
 ### v0.2.0
-- ✅ Backend llama.cpp (GPU natif, sans Ollama)
+- ✅ Backend llama.cpp GPU natif (sans Ollama)
 - ✅ Switch de modèle depuis l'interface web
 - ✅ Monitoring GPU/RAM/TPS en temps réel
 - ✅ Bridge VSCode (Node.js standalone)
 - ✅ Tokens/sec + durée sur chaque réponse
 - ✅ Auto-switch modèle selon l'agent sélectionné
-- ✅ Prompts few-shot pour le tool calling Windows
+- ✅ `--metrics` llama-server activé
 
 ### v0.1.0
 - ✅ Architecture multi-agents (Go)
 - ✅ Interface web WebSocket
 - ✅ Outils : filesystem, git, terminal, vscode
-
----
-
-## 📋 Prérequis logiciels
-
-```powershell
-# Vérifier Go
-go version
-
-# Vérifier Node.js
-node --version
-
-# Vérifier CUDA
-nvidia-smi
-
-# Vérifier llama-server
-.\llama-server.exe --version
-```
 
 ---
 
