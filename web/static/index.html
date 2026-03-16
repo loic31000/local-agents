@@ -215,6 +215,7 @@ select:focus{border-color:rgba(99,102,241,.5)}
 <div id="toast"></div>
 
 <script>
+/* Model layer: state and static mappings */
 const BASE=window.location.origin;
 const CYBER='http://localhost:8086';
 let ws=null,agents=[],models=[],currentAgent=null,currentTab='chat',isGen=false,cyberPoll=null;
@@ -223,6 +224,56 @@ const ICONS={coder:'code-2',files:'folder',email:'mail',social:'share-2',discord
 const COLORS={coder:'#6366f1',files:'#f97316',email:'#3b82f6',social:'#ec4899',discord:'#8b5cf6',cyberdefence:'#22c55e'};
 const $=id=>document.getElementById(id);
 
+/* DTO / View models layer */
+/**
+description d'une fonction : prépare le DTO d'affichage d'un agent pour la sidebar et l'entête.
+@params{object} agent - agent brut retourné par l'API.
+@params{string|null} selectedId - identifiant de l'agent sélectionné.
+@params{string} selectedModel - modèle choisi localement pour l'agent.
+@return{object} DTO prêt à être rendu dans la vue.
+*/
+function toAgentViewDTO(agent,selectedId,selectedModel){
+  return {
+    id:agent.id,
+    name:agent.name||agent.id,
+    icon:ICONS[agent.id]||'bot',
+    color:COLORS[agent.id]||'#64748b',
+    model:selectedModel||agent.model||'défaut',
+    isActive:selectedId===agent.id
+  };
+}
+
+/**
+description d'une fonction : prépare le DTO d'affichage d'un événement CyberDefence.
+@params{object} ev - événement brut retourné par l'API CyberDefence.
+@return{object} DTO normalisé pour le rendu timeline.
+*/
+function toCyberEventViewDTO(ev){
+  return {
+    severity:ev.severity||'INFO',
+    eventType:ev.event_type||'UNKNOWN',
+    description:ev.description||'',
+    metadata:ev.metadata||{},
+    time:ev.timestamp?ev.timestamp.substring(11,19):''
+  };
+}
+
+/**
+description d'une fonction : sécurise et transforme un message texte pour affichage HTML.
+@params{string} text - contenu du message utilisateur ou assistant.
+@return{string} texte échappé et formaté pour la vue.
+*/
+function toSafeMessageHTML(text){
+  return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+/* Controller layer */
+/**
+description d'une fonction : affiche une notification temporaire utilisateur.
+@params{string} msg - message à afficher.
+@params{string} type - niveau visuel (info, success, error).
+@return{void} met à jour l'UI sans retour de valeur.
+*/
 function toast(msg,type='info'){
   const t=$('toast');t.textContent=msg;t.style.display='block';
   t.style.borderColor=type==='success'?'rgba(34,197,94,.3)':type==='error'?'rgba(239,68,68,.3)':'rgba(99,102,241,.3)';
@@ -230,6 +281,11 @@ function toast(msg,type='info'){
   clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);
 }
 
+/**
+description d'une fonction : change l'onglet actif et déclenche les chargements associés.
+@params{string} tab - identifiant d'onglet (chat, cyber, settings).
+@return{void} applique la navigation et les polling nécessaires.
+*/
 function switchTab(tab){
   currentTab=tab;
   ['chat','cyber','settings'].forEach(t=>{
@@ -241,20 +297,31 @@ function switchTab(tab){
   if(tab==='settings')renderAgentModelConfig();
 }
 
+/**
+description d'une fonction : charge la liste des agents depuis l'orchestrateur.
+@params{} - aucun paramètre.
+@return{Promise<void>} met à jour l'état agents puis déclenche le rendu.
+*/
 async function loadAgents(){
   try{const r=await fetch(BASE+'/api/agents');agents=await r.json();renderAgents();if(agents.length)selectAgent(agents[0].id);}
   catch(e){console.error(e);}
 }
 
+/* View layer */
+/**
+description d'une fonction : rend la liste visuelle des agents à partir de DTO de vue.
+@params{} - aucun paramètre.
+@return{void} écrit le HTML dans la sidebar des agents.
+*/
 function renderAgents(){
   $('agents-list').innerHTML=agents.map(a=>{
-    const m=agentModels[a.id]||a.model||'';
-    return `<button class="agent-btn${currentAgent===a.id?' active':''}" onclick="selectAgent('${a.id}')">
+    const dto=toAgentViewDTO(a,currentAgent,agentModels[a.id]||'');
+    return `<button class="agent-btn${dto.isActive?' active':''}" onclick="selectAgent('${dto.id}')">
       <div style="display:flex;align-items:center;gap:8px">
-        <i data-lucide="${ICONS[a.id]||'bot'}" style="width:14px;height:14px;color:${COLORS[a.id]||'#64748b'}"></i>
+        <i data-lucide="${dto.icon}" style="width:14px;height:14px;color:${dto.color}"></i>
         <div style="flex:1;min-width:0">
-          <div style="font-size:12px;font-weight:500;text-transform:capitalize">${a.name||a.id}</div>
-          <div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m||'défaut'}</div>
+          <div style="font-size:12px;font-weight:500;text-transform:capitalize">${dto.name}</div>
+          <div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${dto.model}</div>
         </div>
       </div>
     </button>`;
@@ -262,6 +329,11 @@ function renderAgents(){
   lucide.createIcons();
 }
 
+/**
+description d'une fonction : sélectionne un agent et synchronise les vues dépendantes.
+@params{string} id - identifiant de l'agent sélectionné.
+@return{void} met à jour l'état courant et rafraîchit l'interface.
+*/
 function selectAgent(id){
   currentAgent=id;
   const a=agents.find(x=>x.id===id)||{};
@@ -305,6 +377,11 @@ function renderAgentModelConfig(){
   lucide.createIcons();
 }
 
+/**
+description d'une fonction : envoie un message au backend et affiche la réponse dans le chat.
+@params{} - aucun paramètre.
+@return{Promise<void>} exécute le flux complet requête/rendu.
+*/
 async function sendMessage(){
   const inp=$('msg-input'),msg=inp.value.trim();
   if(!msg||!currentAgent||isGen)return;
@@ -325,10 +402,17 @@ async function sendMessage(){
   finally{isGen=false;$('send-btn').disabled=false;inp.focus();}
 }
 
+/**
+description d'une fonction : ajoute un message rendu dans l'historique chat.
+@params{string} text - texte à afficher.
+@params{string} role - rôle du message (user ou ai).
+@params{boolean} err - indique si le message est une erreur visuelle.
+@return{void} injecte le bloc message dans le DOM.
+*/
 function addMsg(text,role,err=false){
   const box=$('messages');
   const d=document.createElement('div');d.className='msg-wrap';
-  const s=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const s=toSafeMessageHTML(text);
   if(role==='user'){d.className+=' msg-user';d.innerHTML=`<div class="bu">${s}</div>`;}
   else{
     const color=COLORS[currentAgent]||'#64748b',icon=ICONS[currentAgent]||'bot';
@@ -338,6 +422,11 @@ function addMsg(text,role,err=false){
   box.appendChild(d);box.scrollTop=box.scrollHeight;lucide.createIcons();
 }
 
+/**
+description d'une fonction : affiche un indicateur animé pendant la génération d'une réponse.
+@params{} - aucun paramètre.
+@return{HTMLElement} élément DOM à supprimer quand la réponse est disponible.
+*/
 function addThinking(){
   const box=$('messages');
   const color=COLORS[currentAgent]||'#64748b',icon=ICONS[currentAgent]||'bot';
@@ -350,6 +439,11 @@ function addThinking(){
   return d;
 }
 
+/**
+description d'une fonction : charge les métriques et événements CyberDefence en parallèle.
+@params{} - aucun paramètre.
+@return{Promise<void>} met à jour les panneaux cyber.
+*/
 async function loadCyberData(){await Promise.all([loadCyberM(),loadEvents()]);}
 
 async function loadCyberM(){
@@ -380,18 +474,23 @@ async function loadCyberM(){
   }catch(e){$('cyber-agents').innerHTML='<div style="color:var(--muted);font-size:12px">CyberDefence hors ligne</div>';}
 }
 
+/**
+description d'une fonction : charge les événements CyberDefence et les rend dans la timeline.
+@params{} - aucun paramètre.
+@return{Promise<void>} met à jour le bloc d'événements.
+*/
 async function loadEvents(){
   const sev=$('sev-filter').value;
   try{
     const r=await fetch(CYBER+'/events?limit=50'+(sev?'&severity='+sev:''));
     const evs=await r.json();
     if(!evs.length){$('evs').innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px;text-align:center">Aucun événement</div>';return;}
-    $('evs').innerHTML=[...evs].reverse().map(ev=>{
+    $('evs').innerHTML=[...evs].reverse().map(raw=>{
+      const ev=toCyberEventViewDTO(raw);
       const sc='ev-'+ev.severity.toLowerCase();
       const bc=ev.severity==='CRITICAL'?'badge-red':ev.severity==='WARNING'?'badge-amber':'badge-blue';
-      const t=ev.timestamp?ev.timestamp.substring(11,19):'';
       return `<div class="event-row ${sc}">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><span style="display:flex;align-items:center;gap:5px"><span class="badge ${bc}">${ev.severity}</span><span class="mono" style="font-size:11px;font-weight:600">${ev.event_type}</span></span><span class="mono" style="font-size:10px;color:var(--muted)">${t}</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><span style="display:flex;align-items:center;gap:5px"><span class="badge ${bc}">${ev.severity}</span><span class="mono" style="font-size:11px;font-weight:600">${ev.eventType}</span></span><span class="mono" style="font-size:10px;color:var(--muted)">${ev.time}</span></div>
         <div style="font-size:12px;color:var(--muted)">${ev.description}</div>
         ${ev.metadata&&Object.keys(ev.metadata).length?`<div style="font-size:10px;color:#475569;margin-top:2px">${Object.entries(ev.metadata).slice(0,3).map(([k,v])=>`${k}: ${v}`).join(' · ')}</div>`:''}
       </div>`;
@@ -399,6 +498,11 @@ async function loadEvents(){
   }catch{$('evs').innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">CyberDefence hors ligne</div>';}
 }
 
+/**
+description d'une fonction : charge la liste des modèles disponibles depuis l'orchestrateur ou Ollama.
+@params{} - aucun paramètre.
+@return{Promise<void>} met à jour le modèle et les vues dépendantes.
+*/
 async function loadModels(){
   try{const r=await fetch(BASE+'/api/ollama/models');const d=await r.json();models=d.models||[];}
   catch{try{const r=await fetch('http://localhost:11434/api/tags');const d=await r.json();models=d.models||[];}catch{}}
@@ -416,6 +520,11 @@ function renderModels(){
 
 function fmtB(b){if(!b)return'0B';const k=1024,s=['B','KB','MB','GB'],i=Math.floor(Math.log(b)/Math.log(k));return(b/Math.pow(k,i)).toFixed(1)+s[i];}
 
+/**
+description d'une fonction : démarre le téléchargement streamé d'un modèle Ollama.
+@params{} - aucun paramètre.
+@return{Promise<void>} met à jour la progression et la liste de modèles.
+*/
 async function startDL(){
   const name=$('dl-name').value.trim();if(!name)return;
   $('dl-prog').style.display='';$('dl-st').textContent='Préparation...';$('dl-pct').textContent='0%';$('dl-bar').style.width='0%';
@@ -450,6 +559,11 @@ async function checkOllama(){
   catch{$('ol-dot').className='dot dot-red';$('ol-label').textContent='Ollama hors ligne';}
 }
 
+/**
+description d'une fonction : connecte le WebSocket UI pour le statut temps réel.
+@params{} - aucun paramètre.
+@return{void} initialise les handlers open/close/error.
+*/
 function connectWS(){
   const p=location.protocol==='https:'?'wss:':'ws:';
   ws=new WebSocket(p+'//'+location.host+'/ws');

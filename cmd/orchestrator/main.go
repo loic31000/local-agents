@@ -250,6 +250,7 @@ func (o *Orchestrator) handleHealth(w http.ResponseWriter, r *http.Request) {
 		status = "degraded"
 	}
 
+	log.Debug().Bool("ollama_ok", ollamaOK).Int("agents_count", len(o.agents)).Msg("Health check status")
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"status":         status,
 		"agent_id":       "orchestrator",
@@ -587,6 +588,10 @@ func main() {
 	var config Config
 	if err := yaml.Unmarshal(configFile, &config); err != nil {
 		log.Fatal().Err(err).Msg("Erreur de parsing config.yaml")
+	}
+
+	if envURL := os.Getenv("OLLAMA_URL"); envURL != "" {
+		config.Ollama.BaseURL = envURL
 	}
 
 	orch, err := NewOrchestrator(&config)
