@@ -78,24 +78,7 @@ func showHelp() {
 ╔══════════════════════════════════════════════════════════════╗
 ║                    Local Agents CLI                          ║
 ╚══════════════════════════════════════════════════════════════╝
-
-Usage: cli <command> [arguments]
-
-Commands:
-  agents, list     Lister tous les agents disponibles
-  chat <agent>     Mode conversation interactive avec un agent
-  ask <agent> <msg> Poser une question unique à un agent
-  stream <agent>   Chat en streaming via WebSocket
-  status           Afficher le statut du système
-  help             Afficher cette aide
-
-Exemples:
-  cli agents                        # Voir les agents
-  cli ask coder "Écris un hello world en Go"
-  cli chat coder                    # Mode interactif
-  cli stream coder                  # Mode streaming
-
-`)
+\nUsage: cli <command> [arguments]\n\nCommands:\n  agents, list     Lister tous les agents disponibles\n  chat <agent>     Mode conversation interactive avec un agent\n  ask <agent> <msg> Poser une question unique à un agent\n  stream <agent>   Chat en streaming via WebSocket\n  status           Afficher le statut du système\n  help             Afficher cette aide\n\nExemples:\n  cli agents                        # Voir les agents\n  cli ask coder \"Écris un hello world en Go\"\n  cli chat coder                    # Mode interactif\n  cli stream coder                  # Mode streaming\n`)
 }
 
 func listAgents() {
@@ -112,7 +95,8 @@ func listAgents() {
 		return
 	}
 
-	fmt.Println("\n🤖 Agents disponibles:\n")
+	fmt.Println("🤖 Agents disponibles:")
+
 	for _, agent := range agents {
 		status := "🔴"
 		if agent.Enabled {
@@ -297,7 +281,7 @@ func showStatus() {
 		return
 	}
 
-	fmt.Println("\n📊 Statut du système:\n")
+	fmt.Println("\n📊 Statut du système:")
 	fmt.Printf("  Orchestrateur: 🟢 En ligne (v%s)\n", status.Version)
 	fmt.Printf("  Agents actifs: %d\n", status.Agents)
 	fmt.Println()
