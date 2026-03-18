@@ -279,6 +279,8 @@ class MockProvider:
 
         delay = self._get_delay() if self.simulate_delay else 0
         if delay > 0:
+            with open("doc/training/log.txt", "a") as logf:
+                logf.write(f"[MOCK_PROVIDER] Pause {delay}s (sync)...\n")
             time.sleep(delay)
 
         text = self._pick_response(prompt)
@@ -304,6 +306,8 @@ class MockProvider:
 
         delay = self._get_delay() if self.simulate_delay else 0
         if delay > 0:
+            with open("doc/training/log.txt", "a") as logf:
+                logf.write(f"[MOCK_PROVIDER] Pause {delay}s (async)...\n")
             await asyncio.sleep(delay)
 
         text = self._pick_response(prompt)

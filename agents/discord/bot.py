@@ -12,6 +12,7 @@ Features:
 import os
 import re
 import json
+import io
 import asyncio
 import aiohttp
 import discord
@@ -41,6 +42,9 @@ DEFAULT_BACKEND = os.getenv("LLM_BACKEND", "ollama")
 # Ollama config
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+
+# CyberDefence config
+CYBERDEFENCE_URL = os.getenv("CYBERDEFENCE_URL", "http://localhost:8086")
 
 # GGUF config
 GGUF_MODELS_DIR = Path(os.getenv("GGUF_MODELS_DIR", Path.home() / ".local-agents" / "models"))
@@ -145,7 +149,7 @@ def get_backend(guild_id: int) -> str:
 
 def set_backend(guild_id: int, backend: str) -> bool:
     """Définit le backend d'un serveur."""
-    if backend in ["ollama", "gguf"]:
+    if backend in ["mock", "ollama", "gguf"]:
         if backend == "gguf" and not gguf_available:
             return False
         guild_backends[guild_id] = backend
@@ -177,6 +181,8 @@ def get_model(guild_id: int) -> str:
     
     # Sinon, modèle par défaut du mode
     mode_config = MODES.get(mode, MODES["discussion"])
+    if backend == "mock":
+        return "mock"
     if backend == "gguf":
         return mode_config.get("gguf_model", "")
     return mode_config.get("ollama_model", OLLAMA_MODEL)
@@ -215,6 +221,84 @@ def clear_memory(channel_id: int):
     """Efface la mémoire d'un canal."""
     if channel_id in channel_memory:
         del channel_memory[channel_id]
+
+
+# ============================================================
+# CyberDefence integration
+# ============================================================
+
+async def cyber_request(method: str, path: str, payload: Dict | None = None) -> tuple[bool, Any]:
+    """Call CyberDefence API and return (ok, data_or_error_message)."""
+    try:
+        if bot.session is None or bot.session.closed:
+            bot.session = aiohttp.ClientSession()
+
+        timeout = aiohttp.ClientTimeout(total=10)
+        url = f"{CYBERDEFENCE_URL}{path}"
+        async with bot.session.request(method, url, json=payload, timeout=timeout) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            if "application/json" in content_type:
+                data = await resp.json()
+            else:
+                data = await resp.text()
+
+            if 200 <= resp.status < 300:
+                return True, data
+
+            if isinstance(data, dict):
+                return False, data.get("error") or data.get("reason") or f"HTTP {resp.status}"
+            return False, f"HTTP {resp.status}: {str(data)[:180]}"
+    except Exception as e:
+        return False, f"CyberDefence indisponible: {e}"
+
+
+async def inspect_message_with_cyberdefence(message: discord.Message, content: str, request_id: str) -> tuple[bool, str]:
+    """Inspect a Discord message before LLM processing."""
+    payload = {
+        "request_id": request_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "agent_id": "discord",
+        "task": {
+            "message": content,
+            "context": {
+                "metadata": {
+                    "user_id": str(message.author.id),
+                    "channel_id": str(message.channel.id),
+                    "guild_id": str(message.guild.id) if message.guild else "dm",
+                }
+            }
+        }
+    }
+    ok, data = await cyber_request("POST", "/inspect", payload)
+    if not ok:
+        # Fail-open: ne bloque pas le bot si CyberDefence est down.
+        logger.warn("CyberDefence inspect failed", request_id=request_id, error=str(data))
+        return True, "CyberDefence indisponible"
+
+    if isinstance(data, dict) and data.get("allowed", False):
+        return True, data.get("reason", "OK")
+    if isinstance(data, dict):
+        return False, data.get("reason", "Message bloqué")
+    return False, "Message bloqué"
+
+
+async def ask_cyber_chat(content: str, request_id: str) -> Optional[str]:
+    """Forward natural-language cyber queries to CyberDefence /chat."""
+    payload = {
+        "request_id": request_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "agent_id": "discord",
+        "message": content,
+        "context": {"metadata": {"source": "discord"}},
+    }
+    ok, data = await cyber_request("POST", "/chat", payload)
+    if not ok:
+        return None
+
+    try:
+        return data.get("response", {}).get("content")
+    except Exception:
+        return None
 
 
 # ============================================================
@@ -450,6 +534,10 @@ async def ask_llm(
     
     system_prompt = mode_config["prompt"]
     temperature = mode_config["temperature"]
+
+    if backend == "mock":
+        # Backend instantané pour dev/tests et fallback de sécurité.
+        return {"text": f"[mock/{mode}] Reçu: {message[:240]}", "duration_ms": 1}
     
     if backend == "gguf" and gguf_available:
         result = await ask_gguf(
@@ -773,6 +861,13 @@ async def on_message(message: discord.Message):
             return
         
         add_to_memory(message.channel.id, "user", content)
+
+        # Inspection sécurité avant toute action LLM/modération
+        allowed, reason = await inspect_message_with_cyberdefence(message, content, request_id)
+        if not allowed:
+            stats["requests_error"] += 1
+            await message.reply(f"🚫 Requête bloquée par CyberDefence: `{reason}`")
+            return
         
         logger.info(
             "Message received",
@@ -787,6 +882,15 @@ async def on_message(message: discord.Message):
         
         async with message.channel.typing():
             mode = get_mode(message.guild.id)
+
+            # Raccourcis documentés vers CyberDefence en langage naturel
+            lowered = content.lower().strip()
+            if lowered in ("status agents", "alertes sécurité", "alertes securite", "métriques", "metriques"):
+                cyber_reply = await ask_cyber_chat(content, request_id)
+                if cyber_reply:
+                    await execute_action(message, {"action": "chat", "r": cyber_reply}, mentions, request_id)
+                    await bot.process_commands(message)
+                    return
             
             # Vérifier session
             if bot.session is None or bot.session.closed:
@@ -853,6 +957,13 @@ async def backend(ctx, new_backend: str = None):
             value="API HTTP Ollama\n`!backend ollama`",
             inline=True
         )
+
+        mock_status = "✅" if current == "mock" else "⚪"
+        e.add_field(
+            name=f"{mock_status} mock",
+            value="Backend dev instantané\n`!backend mock`",
+            inline=True
+        )
         
         # GGUF
         if gguf_available:
@@ -880,7 +991,7 @@ async def backend(ctx, new_backend: str = None):
         if new_backend == "gguf" and not gguf_available:
             await ctx.send("❌ GGUF non disponible. Installe avec `./scripts/install-gguf.sh`")
         else:
-            await ctx.send(f"❌ Backend inconnu. Dispo: `ollama`, `gguf`")
+            await ctx.send(f"❌ Backend inconnu. Dispo: `mock`, `ollama`, `gguf`")
 
 
 @bot.command()
@@ -1049,6 +1160,11 @@ async def help(ctx):
         inline=False
     )
     e.add_field(
+        name="🛡️ CyberDefence",
+        value="`!cyber status` | `!cyber metrics` | `!cyber events`\n`!cyber block-ip <ip>` | `!cyber unblock-ip <ip>` | `!cyber export csv`",
+        inline=False
+    )
+    e.add_field(
         name="💾 Mémoire",
         value="`!memory` - Voir\n`!memory clear` - Effacer",
         inline=False
@@ -1060,6 +1176,107 @@ async def help(ctx):
     e.set_footer(text=f"Backend: {backend} | Mode: {mode} | Modèle: {model} | v{AGENT_VERSION}")
     
     await ctx.send(embed=e)
+
+
+@bot.command(name="cyber")
+async def cyber(ctx, action: str = "status", value: str = ""):
+    """Commandes CyberDefence pour la modération Discord."""
+    action = (action or "status").lower()
+
+    if action == "status":
+        ok, data = await cyber_request("GET", "/status")
+        if not ok:
+            await ctx.send(f"❌ {data}")
+            return
+
+        orch = data.get("orchestrator", {})
+        agents = data.get("agents", {})
+        stats_data = data.get("stats", {})
+        e = discord.Embed(title="🛡️ CyberDefence Status", color=0x2F3136)
+        e.add_field(name="Orchestrateur", value=f"`{orch.get('status', 'unknown')}`", inline=True)
+        e.add_field(name="Inspectées", value=str(stats_data.get("total_inspected", 0)), inline=True)
+        e.add_field(name="Bloquées", value=str(stats_data.get("total_blocked", 0)), inline=True)
+        healthy = sum(1 for a in agents.values() if a.get("status") == "healthy")
+        e.add_field(name="Agents healthy", value=f"{healthy}/{max(len(agents), 1)}", inline=True)
+        e.add_field(name="IPs bloquées", value=str(stats_data.get("blocked_ips_count", 0)), inline=True)
+        e.add_field(name="Événements", value=str(stats_data.get("events_total", 0)), inline=True)
+        await ctx.send(embed=e)
+        return
+
+    if action == "metrics":
+        ok, data = await cyber_request("GET", "/metrics")
+        if not ok:
+            await ctx.send(f"❌ {data}")
+            return
+        sev = data.get("events_by_severity", {})
+        txt = (
+            "**📊 CyberDefence Metrics**\n"
+            f"Inspectées: **{data.get('inspected_total', 0)}**\n"
+            f"Bloquées: **{data.get('blocked_total', 0)}**\n"
+            f"Block rate: **{data.get('block_rate', 0)}**\n"
+            f"IPs bloquées: **{data.get('blocked_ips_count', 0)}**\n"
+            f"INFO/WARNING/CRITICAL: **{sev.get('INFO', 0)}/{sev.get('WARNING', 0)}/{sev.get('CRITICAL', 0)}**"
+        )
+        await ctx.send(txt)
+        return
+
+    if action == "events":
+        severity = value.upper().strip()
+        query = "/events?limit=10"
+        if severity in ("INFO", "WARNING", "CRITICAL"):
+            query += f"&severity={severity}"
+        ok, data = await cyber_request("GET", query)
+        if not ok:
+            await ctx.send(f"❌ {data}")
+            return
+        if not data:
+            await ctx.send("✅ Aucun événement.")
+            return
+        lines = ["**🧾 Derniers événements sécurité**"]
+        for ev in data[-10:]:
+            lines.append(f"`{ev.get('severity', '?')}` `{ev.get('event_type', '?')}` - {ev.get('description', '')[:90]}")
+        await ctx.send("\n".join(lines))
+        return
+
+    if action in ("block-ip", "unblock-ip"):
+        ip = value.strip()
+        if not ip:
+            await ctx.send(f"❌ Usage: `!cyber {action} <ip>`")
+            return
+        route = "/block-ip" if action == "block-ip" else "/unblock-ip"
+        ok, data = await cyber_request("POST", route, {"ip": ip})
+        if not ok:
+            await ctx.send(f"❌ {data}")
+            return
+        await ctx.send(f"✅ `{ip}` traité via `{action}`")
+        return
+
+    if action == "export":
+        fmt = value.lower().strip() or "csv"
+        if fmt not in ("csv", "json"):
+            await ctx.send("❌ Formats: `csv` ou `json`")
+            return
+        ok, data = await cyber_request("GET", f"/events?limit=500&format={fmt}")
+        if not ok:
+            await ctx.send(f"❌ {data}")
+            return
+        if fmt == "csv":
+            blob = data.encode("utf-8") if isinstance(data, str) else str(data).encode("utf-8")
+            await ctx.send(file=discord.File(io.BytesIO(blob), filename="cyber_events.csv"))
+        else:
+            blob = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+            await ctx.send(file=discord.File(io.BytesIO(blob), filename="cyber_events.json"))
+        return
+
+    await ctx.send(
+        "**Usage `!cyber`**\n"
+        "`!cyber status`\n"
+        "`!cyber metrics`\n"
+        "`!cyber events [INFO|WARNING|CRITICAL]`\n"
+        "`!cyber block-ip <ip>`\n"
+        "`!cyber unblock-ip <ip>`\n"
+        "`!cyber export csv|json`"
+    )
 
 
 # ============================================================

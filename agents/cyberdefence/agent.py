@@ -389,6 +389,8 @@ async def ping_agent(session: ClientSession, agent_id: str):
 
 async def monitor_loop():
     """Boucle principale de monitoring."""
+    with open("doc/training/log.txt", "a") as logf:
+        logf.write("[CYBERDEFENCE] Pause initiale 5s pour laisser démarrer les services...\n")
     await asyncio.sleep(5)  # Laisser le temps au reste de démarrer
     async with ClientSession() as session:
         while True:
@@ -398,6 +400,8 @@ async def monitor_loop():
                     await ping_agent(session, agent_id)
             except Exception as e:
                 logger.error(f"Erreur dans monitor_loop : {e}")
+            with open("doc/training/log.txt", "a") as logf:
+                logf.write(f"[CYBERDEFENCE] Pause {CHECK_INTERVAL}s avant prochain monitoring...\n")
             await asyncio.sleep(CHECK_INTERVAL)
 
 # ─── Middleware /inspect ───────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 Agent Python de base pour communiquer avec l'orchestrateur Go.
 """
 
+import os
 import asyncio
 import json
 import aiohttp
@@ -53,12 +54,13 @@ class BaseAgent(ABC):
     def __init__(
         self,
         agent_id: str,
-        orchestrator_url: str = "http://localhost:8080",
-        ws_url: str = "ws://localhost:8080/ws"
+        orchestrator_url: str = None,
+        ws_url: str = None
     ):
+        _base = os.getenv("ORCHESTRATOR_URL", "http://localhost:8080")
         self.agent_id = agent_id
-        self.orchestrator_url = orchestrator_url
-        self.ws_url = ws_url
+        self.orchestrator_url = orchestrator_url or _base
+        self.ws_url = ws_url or _base.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
         self.session: Optional[aiohttp.ClientSession] = None
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self.handlers: Dict[str, Callable] = {}
@@ -158,6 +160,8 @@ class BaseAgent(ABC):
                     
             except websockets.ConnectionClosed:
                 print("⚠️ WebSocket déconnecté, reconnexion...")
+                with open("doc/training/log.txt", "a") as logf:
+                    logf.write("[INFO] Pause 1s avant reconnexion WebSocket...\n")
                 await asyncio.sleep(1)
                 await self.connect_websocket()
             except Exception as e:

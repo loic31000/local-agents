@@ -82,12 +82,16 @@ type Orchestrator struct {
 func NewOrchestrator(config *Config) (*Orchestrator, error) {
 	ollamaClient := llm.NewOllamaClient(config.Ollama.BaseURL)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := ollamaClient.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("impossible de se connecter à Ollama: %w", err)
+	if os.Getenv("OLLAMA_SKIP_PING") != "true" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := ollamaClient.Ping(ctx); err != nil {
+			return nil, fmt.Errorf("impossible de se connecter à Ollama: %w", err)
+		}
+		log.Info().Str("url", config.Ollama.BaseURL).Msg("Connecté à Ollama")
+	} else {
+		log.Warn().Str("url", config.Ollama.BaseURL).Msg("OLLAMA_SKIP_PING=true — démarrage sans vérification Ollama")
 	}
-	log.Info().Str("url", config.Ollama.BaseURL).Msg("Connecté à Ollama")
 
 	orch := &Orchestrator{
 		config:       config,
