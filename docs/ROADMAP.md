@@ -14,7 +14,7 @@
 
 ---
 
-## ✅ Terminé — v1.0 → v4.2
+## ✅ Terminé — v1.0 → v4.2 
 
 | Feature | Statut | Détails |
 |---------|--------|---------|

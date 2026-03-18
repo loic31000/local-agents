@@ -1,0 +1,842 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jarvis-data
+  labels:
+    app.kubernetes.io/part-of: jarvis
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jarvis-core
+  labels:
+    app.kubernetes.io/part-of: jarvis
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jarvis-llm
+  labels:
+    app.kubernetes.io/part-of: jarvis
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jarvis-training
+  labels:
+    app.kubernetes.io/part-of: jarvis
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jarvis-secrets
+  namespace: jarvis-data
+type: Opaque
+stringData:
+  postgres-password: q85SeBuyJ6rSRsj7Gy1x7TQ
+  redis-password: W6i8NaGPnfvJmi6daWkzeSJC
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jarvis-secrets
+  namespace: jarvis-core
+type: Opaque
+stringData:
+  postgres-password: q85SeBuyJ6rSRsj7Gy1x7TQ
+  redis-password: W6i8NaGPnfvJmi6daWkzeSJC
+  jwt-secret: w4VgAjw3hJha1FAV3olMtoRekpVImH6wkoDj7fGkGro
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jarvis-secrets
+  namespace: jarvis-llm
+type: Opaque
+stringData:
+  postgres-password: q85SeBuyJ6rSRsj7Gy1x7TQ
+  redis-password: W6i8NaGPnfvJmi6daWkzeSJC
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jarvis-secrets
+  namespace: jarvis-training
+type: Opaque
+stringData:
+  postgres-password: q85SeBuyJ6rSRsj7Gy1x7TQ
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jarvis-trainer
+  namespace: jarvis-training
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jarvis-llm-restarter
+  namespace: jarvis-llm
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "patch", "update"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jarvis-trainer-can-restart-llm
+  namespace: jarvis-llm
+subjects:
+- kind: ServiceAccount
+  name: jarvis-trainer
+  namespace: jarvis-training
+roleRef:
+  kind: Role
+  name: jarvis-llm-restarter
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jarvis-pvc-access
+  namespace: jarvis-training
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jarvis-trainer-pvc-access
+  namespace: jarvis-training
+subjects:
+- kind: ServiceAccount
+  name: jarvis-trainer
+  namespace: jarvis-training
+roleRef:
+  kind: Role
+  name: jarvis-pvc-access
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: jarvis-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: jarvis-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chroma-pvc
+  namespace: jarvis-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models-pvc
+  namespace: jarvis-llm
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: training-pvc
+  namespace: jarvis-training
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-pvc
+  namespace: jarvis-training
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logs-pvc
+  namespace: jarvis-training
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: jarvis-training-priority
+value: 1000
+globalDefault: false
+description: "Priorite haute pour les jobs training"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: jarvis-runtime-priority
+value: 100
+globalDefault: false
+description: "Priorite runtime"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: jarvis-data
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: jarvis
+        - name: POSTGRES_USER
+          value: jarvis_user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: postgres-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: jarvis-data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command: ["redis-server", "--requirepass", "$(REDIS_PASSWORD)", "--appendonly", "yes"]
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: redis-password
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: chromadb
+  namespace: jarvis-data
+spec:
+  serviceName: chromadb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chromadb
+  template:
+    metadata:
+      labels:
+        app: chromadb
+    spec:
+      containers:
+      - name: chromadb
+        image: chromadb/chroma:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: IS_PERSISTENT
+          value: "TRUE"
+        - name: PERSIST_DIRECTORY
+          value: /chroma/data
+        volumeMounts:
+        - name: chroma-data
+          mountPath: /chroma/data
+      volumes:
+      - name: chroma-data
+        persistentVolumeClaim:
+          claimName: chroma-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-backend
+  namespace: jarvis-llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      priorityClassName: jarvis-runtime-priority
+      containers:
+      - name: ollama
+        image: ollama/ollama:latest
+        ports:
+        - containerPort: 11434
+        env:
+        - name: OLLAMA_HOST
+          value: 0.0.0.0
+        - name: OLLAMA_MODELS
+          value: /models
+        resources:
+          limits:
+            memory: 6Gi
+            cpu: "2"
+          requests:
+            memory: 2Gi
+            cpu: "500m"
+        volumeMounts:
+        - name: ollama-models
+          mountPath: /models
+      volumes:
+      - name: ollama-models
+        persistentVolumeClaim:
+          claimName: ollama-models-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jarvis-api
+  namespace: jarvis-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jarvis-api
+  template:
+    metadata:
+      labels:
+        app: jarvis-api
+    spec:
+      containers:
+      - name: api
+        image: jarvis/api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: postgres-password
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: redis-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: jwt-secret
+        - name: POSTGRES_URL
+          value: postgres://jarvis_user:$(POSTGRES_PASSWORD)@postgres.jarvis-data.svc.cluster.local:5432/jarvis
+        - name: REDIS_URL
+          value: redis://:$(REDIS_PASSWORD)@redis.jarvis-data.svc.cluster.local:6379
+        - name: CHROMA_URL
+          value: http://chromadb.jarvis-data.svc.cluster.local:8000
+        - name: OLLAMA_URL
+          value: http://ollama-backend.jarvis-llm.svc.cluster.local:11434
+        - name: OLLAMA_SKIP_PING
+          value: "true"
+        volumeMounts:
+        - name: app-config
+          mountPath: /root/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: app-config
+        configMap:
+          name: jarvis-app-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jarvis-worker
+  namespace: jarvis-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jarvis-worker
+  template:
+    metadata:
+      labels:
+        app: jarvis-worker
+    spec:
+      containers:
+      - name: worker
+        image: jarvis/worker:latest
+        imagePullPolicy: IfNotPresent
+        command: ["python3", "-m", "agents.base_agent"]
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jarvis-secrets
+              key: redis-password
+        - name: QUEUE_URL
+          value: redis://:$(REDIS_PASSWORD)@redis.jarvis-data.svc.cluster.local:6379
+        - name: LLM_URL
+          value: http://ollama-backend.jarvis-llm.svc.cluster.local:11434
+        - name: ORCHESTRATOR_URL
+          value: http://jarvis-api.jarvis-core.svc.cluster.local:8080
+        - name: OLLAMA_URL
+          value: http://ollama-backend.jarvis-llm.svc.cluster.local:11434
+        volumeMounts:
+        - name: app-config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: app-config
+        configMap:
+          name: jarvis-app-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: axolotl-config
+  namespace: jarvis-training
+data:
+  qwen2.5-coder-lora.yaml: |
+    base_model: HuggingFaceTB/SmolLM2-360M-Instruct
+    load_in_4bit: true
+    adapter: lora
+    lora_r: 16
+    lora_alpha: 32
+    lora_dropout: 0.05
+    datasets:
+      - path: /data/dataset/train.jsonl
+        type: chatml
+    val_set_path: /data/dataset/eval.jsonl
+    sequence_len: 512
+    micro_batch_size: 1
+    gradient_accumulation_steps: 2
+    num_epochs: 3
+    learning_rate: 2e-4
+    output_dir: /models/jarvis-smollm2-ft
+    bf16: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: finetune-job
+  namespace: jarvis-training
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: jarvis-trainer
+      restartPolicy: Never
+      priorityClassName: jarvis-training-priority
+      containers:
+      - name: trainer
+        image: jarvis/trainer:axolotl
+        imagePullPolicy: IfNotPresent
+        command:
+        - sh
+        - -lc
+        - |
+          python - <<'PY' > /logs/finetune.log 2>&1
+          import json
+          import random
+          from pathlib import Path
+
+          from datasets import load_dataset
+          from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
+
+          model_id = "sshleifer/tiny-gpt2"
+          train_file = "/data/dataset/train.jsonl"
+          eval_file = "/data/dataset/eval.jsonl"
+          out_dir = "/models/jarvis-smollm2-ft"
+
+          base = [
+            ("status agents", "Utilise `!cyber status` pour voir orchestrateur et agents."),
+            ("alertes securite", "Utilise `!cyber events WARNING` ou `!cyber events CRITICAL`."),
+            ("metriques", "Utilise `!cyber metrics` pour le taux de blocage."),
+            ("export csv", "Commande: `!cyber export csv`."),
+            ("backend mock", "Commande: `!backend mock`."),
+            ("backend ollama", "Commande: `!backend ollama`."),
+            ("mode moderation", "Commande: `!mode moderation`."),
+          ]
+          mods = [
+            ("Nettoie 20 messages", '{"action":"clear","n":20}'),
+            ("Kick cet utilisateur", '{"action":"kick"}'),
+            ("Ban ce membre", '{"action":"ban"}'),
+            ("Mute 10 minutes", '{"action":"mute","min":10}'),
+          ]
+
+          rows = []
+          random.seed(42)
+          for _ in range(25):
+            for u, a in base:
+              rows.append({"messages": [{"role": "system", "content": "Tu es Jarvis local multi-agents."}, {"role": "user", "content": u}, {"role": "assistant", "content": a}]})
+            for u, a in mods:
+              rows.append({"messages": [{"role": "system", "content": "Tu es Jarvis moderation. Retourne uniquement un JSON d'action."}, {"role": "user", "content": u}, {"role": "assistant", "content": a}]})
+
+          random.shuffle(rows)
+          split = int(len(rows) * 0.9)
+          train_rows, eval_rows = rows[:split], rows[split:]
+          Path("/data/dataset").mkdir(parents=True, exist_ok=True)
+          with open(train_file, "w", encoding="utf-8") as f:
+            for r in train_rows:
+              f.write(json.dumps(r, ensure_ascii=False) + "\n")
+          with open(eval_file, "w", encoding="utf-8") as f:
+            for r in eval_rows:
+              f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+          ds = load_dataset("json", data_files={"train": train_file, "eval": eval_file})
+          to_text = lambda ex: {"text": "\n".join([f"{m['role']}: {m['content']}" for m in ex.get("messages", [])])}
+          train_ds = ds["train"].map(to_text, remove_columns=ds["train"].column_names)
+          eval_ds = ds["eval"].map(to_text, remove_columns=ds["eval"].column_names)
+
+          tok = AutoTokenizer.from_pretrained(model_id)
+          if tok.pad_token is None:
+            tok.pad_token = tok.eos_token
+          train_tok = train_ds.map(lambda x: tok(x["text"], truncation=True, max_length=256), batched=True, remove_columns=["text"])
+          eval_tok = eval_ds.map(lambda x: tok(x["text"], truncation=True, max_length=256), batched=True, remove_columns=["text"])
+
+          model = AutoModelForCausalLM.from_pretrained(model_id)
+          args = TrainingArguments(output_dir=out_dir, per_device_train_batch_size=2, gradient_accumulation_steps=2, max_steps=120, learning_rate=2e-4, logging_steps=5, save_steps=40, save_total_limit=2, report_to=[], fp16=False, bf16=False)
+          trainer = Trainer(model=model, args=args, train_dataset=train_tok, data_collator=DataCollatorForLanguageModeling(tokenizer=tok, mlm=False))
+          train_result = trainer.train()
+          eval_result = {}
+          trainer.save_model(out_dir)
+          tok.save_pretrained(out_dir)
+
+          with open("/logs/training_report.json", "w", encoding="utf-8") as f:
+            json.dump({"train_rows": len(train_rows), "eval_rows": len(eval_rows), "train_metrics": train_result.metrics, "eval_metrics": eval_result, "model_id": model_id, "output_dir": out_dir}, f, ensure_ascii=False, indent=2)
+          print("finetune-complete", out_dir)
+          PY
+        resources:
+          limits:
+            memory: 2Gi
+            cpu: "1"
+          requests:
+            memory: 1Gi
+            cpu: "500m"
+        volumeMounts:
+        - name: training-data
+          mountPath: /data
+        - name: model-output
+          mountPath: /models
+        - name: axolotl-config
+          mountPath: /config
+        - name: logs
+          mountPath: /logs
+      volumes:
+      - name: training-data
+        persistentVolumeClaim:
+          claimName: training-pvc
+      - name: model-output
+        persistentVolumeClaim:
+          claimName: model-pvc
+      - name: axolotl-config
+        configMap:
+          name: axolotl-config
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-pvc
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jarvis-app-config
+  namespace: jarvis-core
+data:
+  config.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 8080
+      websocket_path: "/ws"
+      cors:
+        enabled: true
+        origins:
+          - "http://localhost:*"
+          - "http://127.0.0.1:*"
+    logging:
+      level: "info"
+      format: "json"
+      file: "logs/agents.log"
+      fields:
+        - timestamp
+        - level
+        - request_id
+        - agent_id
+        - duration_ms
+        - status
+    queue:
+      type: "memory"
+      max_concurrent: 5
+      task_timeout: "5m"
+      retry_attempts: 3
+      retry_delay: "1s"
+    ollama:
+      base_url: "http://ollama-backend.jarvis-llm.svc.cluster.local:11434"
+      default_model: "tinyllama:1.1b-chat-v1-q4_0"
+      models:
+        coding:  "tinyllama:1.1b-chat-v1-q4_0"
+        general: "tinyllama:1.1b-chat-v1-q4_0"
+        fast:    "tinyllama:1.1b-chat-v1-q4_0"
+        french:  "mistral:7b-instruct-q4_0"
+      defaults:
+        temperature: 0.7
+        max_tokens: 1024
+        timeout_ms: 60000
+    agents:
+      coder:
+        enabled: true
+        monitor: true
+        name: "Coder"
+        model: "coding"
+        prompt_file: "prompts/coder.md"
+        tools: [vscode, git, terminal, filesystem]
+        config:
+          temperature: 0.3
+          max_tokens: 2048
+          timeout_ms: 120000
+      files:
+        enabled: true
+        monitor: true
+        name: "Files"
+        model: "general"
+        prompt_file: "prompts/files.md"
+        tools: [filesystem]
+        config:
+          temperature: 0.2
+          max_tokens: 1024
+          timeout_ms: 30000
+      email:
+        enabled: true
+        monitor: true
+        name: "Email"
+        model: "fast"
+        prompt_file: "prompts/email.md"
+        tools: [smtp]
+        config:
+          temperature: 0.5
+          max_tokens: 1024
+          timeout_ms: 30000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: jarvis-data
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: jarvis-data
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chromadb
+  namespace: jarvis-data
+spec:
+  selector:
+    app: chromadb
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-backend
+  namespace: jarvis-llm
+spec:
+  selector:
+    app: ollama
+  ports:
+  - port: 11434
+    targetPort: 11434
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jarvis-api
+  namespace: jarvis-core
+spec:
+  selector:
+    app: jarvis-api
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: websocket
+    port: 8081
+    targetPort: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jarvis-ingress
+  namespace: jarvis-core
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/websocket-services: jarvis-api
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: jarvis.local
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: jarvis-api
+            port:
+              number: 8080
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: jarvis-api
+            port:
+              number: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-access-policy
+  namespace: jarvis-data
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          app.kubernetes.io/part-of: jarvis
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: training-isolation
+  namespace: jarvis-training
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: jarvis-data
+    ports:
+    - port: 5432
+  - ports:
+    - port: 53
+      protocol: UDP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jarvis-version
+  namespace: jarvis-core
+data:
+  version: "2.0"
+  deployed: "2026-03-17"
+  description: "Jarvis AI Platform compact monolith manifest"

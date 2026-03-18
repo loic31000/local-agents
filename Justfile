@@ -75,6 +75,9 @@ model-rm model:
 install-gguf:
     bash scripts/install-gguf.sh
 
+training-export-logs namespace="jarvis-training" job="finetune-job-lite" pvc="logs-pvc" out="doc/training" subdir="{{job}}":
+    bash scripts/export_training_logs.sh {{namespace}} {{job}} {{pvc}} {{out}} {{subdir}}
+
 gpu:
     nvidia-smi 2>/dev/null || rocm-smi 2>/dev/null || echo "Aucun outil GPU"
 

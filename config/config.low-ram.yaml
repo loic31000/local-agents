@@ -10,11 +10,11 @@ server:
 
 ollama:
   base_url: "http://localhost:11434"
-  default_model: "phi3:mini"
+  default_model: "tinyllama:1.1b-chat-v1-q4_0"
   models:
-    coding: "phi3:mini"
-    general: "phi3:mini"
-    fast: "phi3:mini"
+    coding: "tinyllama:1.1b-chat-v1-q4_0"
+    general: "tinyllama:1.1b-chat-v1-q4_0"
+    fast: "tinyllama:1.1b-chat-v1-q4_0"
 
 agents:
   coder:
