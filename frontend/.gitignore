@@ -1,0 +1,54 @@
+# Binaires
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+go.sum
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Env et secrets
+.env
+.env.local
+.env.*.local
+
+# Données et logs
+data/
+logs/
+*.log
+*.db
+*.sqlite
+
+# PID files
+.*.pid
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporaires
+tmp/
+temp/
+*.tmp
+.backend
+
+node_modules/
+frontend/node_modules/

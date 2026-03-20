@@ -196,8 +196,12 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	router.HandleFunc("/api/health", o.handleHealth).Methods("GET")
 	router.HandleFunc("/api/config", o.handleConfig).Methods("GET")
 	router.HandleFunc("/api/agents", o.handleListAgents).Methods("GET")
-	router.HandleFunc("/api/agents/{id}", o.handleGetAgent).Methods("GET")
-	router.HandleFunc("/api/agents/{id}/health", o.handleAgentHealth).Methods("GET") // ← NOUVEAU
+	router.HandleFunc("/api/agents/{id}", o.handleGetAgent).Methods("GET", "PUT")
+
+	router.HandleFunc("/api/agents/{id}/health", o.handleAgentHealth).Methods("GET")
+	router.HandleFunc("/api/agents/{id}/start", o.handleAgentStart).Methods("POST")
+	router.HandleFunc("/api/agents/{id}/stop", o.handleAgentStop).Methods("POST")
+
 	router.HandleFunc("/api/tasks", o.handleCreateTask).Methods("POST")
 	router.HandleFunc("/api/tasks/{id}", o.handleGetTask).Methods("GET")
 	router.HandleFunc("/api/chat/{agent}", o.handleChat).Methods("POST")
@@ -578,6 +582,88 @@ func (o *Orchestrator) broadcastResult(result *agent.Result) {
 	for client := range o.wsClients {
 		client.WriteMessage(websocket.TextMessage, msg)
 	}
+}
+
+func (o *Orchestrator) handleAgentStart(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if a, ok := o.agents[id]; ok {
+		a.Enable()
+		jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"agent_id": id,
+			"enabled":  true,
+			"status":   "started",
+		})
+	} else {
+		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "agent non trouvé"})
+	}
+}
+
+func (o *Orchestrator) handleAgentStop(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if a, ok := o.agents[id]; ok {
+		a.Disable()
+		jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"agent_id": id,
+			"enabled":  false,
+			"status":   "stopped",
+		})
+	} else {
+		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "agent non trouvé"})
+	}
+}
+
+func (o *Orchestrator) handleAgent(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	switch r.Method {
+	case "GET":
+		if a, ok := o.agents[id]; ok {
+			jsonResponse(w, http.StatusOK, a.Info())
+		} else {
+			jsonResponse(w, http.StatusNotFound, map[string]string{"error": "agent non trouvé"})
+		}
+	case "PUT":
+		o.handleUpdateAgent(w, r)
+	default:
+		jsonResponse(w, http.StatusMethodNotAllowed, map[string]string{
+			"error": "méthode non autorisée",
+		})
+	}
+}
+
+func (o *Orchestrator) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	// Vérifier que l'agent existe
+	if _, cfgOK := o.config.Agents[id]; !cfgOK {
+		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "agent non trouvé dans config"})
+		return
+	}
+
+	var payload struct {
+		Description  string   `json:"description"`
+		Model        string   `json:"model"`
+		Capabilities []string `json:"capabilities"`
+		Enabled      bool     `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		jsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Réponse immédiate au frontend (pas de persistance pour l'instant)
+	jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"agent_id":     id,
+		"status":       "updated",
+		"description":  payload.Description,
+		"model":        payload.Model,
+		"capabilities": payload.Capabilities,
+		"enabled":      payload.Enabled,
+	})
 }
 
 func main() {
