@@ -13,10 +13,13 @@ import {
   Cpu
 } from "lucide-react";
 import { useState } from "react";
+import { AgentsProvider } from "../contexts/AgentsContext";
+
 
 export function Root() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
 
   const navigation = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -28,6 +31,7 @@ export function Root() {
     { name: "Observability", path: "/observability", icon: Activity },
     { name: "Settings", path: "/settings", icon: Settings },
   ];
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
@@ -62,6 +66,7 @@ export function Root() {
         </div>
       </header>
 
+
       <div className="flex pt-16">
         {/* Sidebar */}
         <aside
@@ -94,9 +99,12 @@ export function Root() {
           </nav>
         </aside>
 
+
         {/* Main Content */}
         <main className="flex-1 lg:ml-64 p-6 overflow-auto">
-          <Outlet />
+          <AgentsProvider>
+            <Outlet />
+          </AgentsProvider>
         </main>
       </div>
     </div>
