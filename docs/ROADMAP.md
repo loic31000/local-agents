@@ -1,68 +1,85 @@
-```markdown
-# 📋 ROADMAP — Local Agents v4.5.0 "Lightning Framework" 🚀
+# 📋 ROADMAP — Nexus v5.x
 
-## Architecture
+## Architecture actuelle (v5.0.0)
 
-| Couche | Composants |
-|--------|------------|
-| 🟢 Mock Layer | Dev/Démo instantané — 0.5s |
-| 🟡 Observer Bus | Logs · Métriques · Stats realtime |
-| 🔵 Orchestrateur Go | Web:8081 · Discord · CLI · Router + 5 Workers |
-| 🟢 Agents Pool | `coder` `files` `email` `discord` `cyberdefence` |
-| 🟣 LoRA Router | coder-lora · cyber-lora · fr-lora · auto-switch |
-| 🔴 LLM Backends | Ollama (défaut) · GGUF · ⏸️ BitNet (2027) |
-
----
-
-## ✅ Terminé — v1.0 → v4.2 
-
-| Feature | Statut | Détails |
-|---------|--------|---------|
-| Orchestrateur Go | ✅ | Routing + Queue + WebSocket + API REST + 5 workers |
-| 6 Agents Live | ✅ | `coder` `files` `email` `discord` `cyberdefence` |
-| Discord Jarvis | ✅ | v3.0.0 — commandes naturelles + modération |
-| Dashboard Web | ✅ | Chat + CyberDefence + Paramètres + modèles Ollama |
-| Docker + Just | ✅ | `just start/stop/restart` + 4 configs YAML |
-| CyberDefence v1.1.0 | ✅ | Prompt injection + SQL + anti-replay + alertes Discord |
-| Tests sécurité | ✅ | 5/5 passés — CRITICAL/WARNING Discord temps réel |
-| Scripts install | ✅ | `install.ps1` Windows + `install.sh` Linux — 1 commande |
-| Nettoyage scripts | ✅ | `setup.sh` + `start_agents.sh` supprimés |
-| `.env.example` | ✅ | `GPU_ENABLED`, `GPU_TYPE`, `DISCORD_TOKEN` standardisé |
-
----
-
-## ✅ Terminé — Mock Layer v4.1.0
-
-| Backend | RAM | Temps | CPU |
-|---------|-----|-------|-----|
-| 🟢 Mock Layer | 0 MB | 0.5s | 0% |
-| 🟡 Ollama 3B | 3.5 GB | 5–8s | 85% |
-
-```bash
-just mock-on    # Dev instantané
-just prod       # Ollama production
+```
+┌─────────────────────────────────────────────────────┐
+│  Nexus Dashboard (React + TypeScript + Vite)        │
+│  8 pages · Métriques système live · Dark UI         │
+└──────────────────────┬──────────────────────────────┘
+                       │ HTTP + WebSocket
+┌──────────────────────▼──────────────────────────────┐
+│  Orchestrateur Go :8081                             │
+│  API REST · Queue · 5 workers · /api/metrics/system  │
+└──┬──────────┬──────────┬──────────────┬─────────────┘
+   │          │          │              │
+coder       files      email     cyberdefence :8086
+   │                              (Python)
+┌──▼────────────┐   ┌─────────────────────────────┐
+│ BackendRouter │   │  Training Service            │
+│ Mock | Ollama │   │  LoRA/QLoRA · PostgreSQL     │
+└───────────────┘   └─────────────────────────────┘
 ```
 
 ---
 
-## ⏸️ En pause — BitNet (reporter 2027)
+## ✅ Terminé — v1.0 → v5.0
 
-> BitNet b1.58 est trop expérimental sur Windows. Bloqué sur le toolset `ClangCL`
-> absent de VS BuildTools. À reprendre sous Linux/WSL2 ou en 2027.
-
-| Problème | Détail |
-|----------|--------|
-| ClangCL manquant | VS BuildTools 2022 ne l'installe pas correctement |
-| lld-link mainCRTStartup | Linkage CRT cassé avec clang 22 + Ninja |
-| setup_env.py | `NotImplementedError` sur Windows |
-
-**Alternative recommandée** : `ollama pull qwen2.5-coder:1.5b` — 30 t/s CPU, zéro compilation.
+| Feature | Version | Statut |
+|---------|---------|--------|
+| Orchestrateur Go + WebSocket | v1.0 | ✅ |
+| Agents Python (coder, files, email) | v1.0 | ✅ |
+| Support Ollama | v1.0 | ✅ |
+| Bot Discord Jarvis | v3.0 | ✅ |
+| CyberDefence (injection, replay, IP) | v4.0 | ✅ |
+| Dashboard Web v1 | v4.0 | ✅ |
+| BackendRouter Mock Layer (52×) | v4.1 | ✅ |
+| Scripts install.sh + install.ps1 | v4.2 | ✅ |
+| Suppression BitNet | v4.2.1 | ✅ |
+| **Refonte UI complète — Nexus** | **v5.0** | ✅ |
+| Dashboard KPIs + charts + terminal | v5.0 | ✅ |
+| Chat sans sidebar + dropdown agents | v5.0 | ✅ |
+| Models — groupés, pull streaming | v5.0 | ✅ |
+| Training — jobs LoRA + logs inline | v5.0 | ✅ |
+| Datasets — JSONL, HF, Discord | v5.0 | ✅ |
+| Observability — latences p50/p95/p99 | v5.0 | ✅ |
+| CyberDefence — vertical, épuré | v5.0 | ✅ |
+| Settings — accordéons, persistance | v5.0 | ✅ |
+| Métriques CPU/RAM/GPU temps réel | v5.0 | ✅ |
+| Logo Nexus SVG custom | v5.0 | ✅ |
 
 ---
 
-## 🔥 Priorité #1 — LoRA Dynamique v4.3.0 *(1 semaine)*
+## ⏸️ En pause — BitNet (2027)
 
-Chaque agent charge automatiquement son adapteur LoRA selon le contexte du message.
+> BitNet b1.58 bloqué sur Windows (ClangCL manquant, lld-link cassé). Reporté à 2027 ou Linux/WSL2.
+
+**Alternative** : `ollama pull qwen2.5-coder:1.5b` — 30 t/s CPU, zéro compilation.
+
+---
+
+## 🔥 Priorité #1 — Observer Bus v5.1.0 *(2 semaines)*
+
+Le service Observer existe en config mais n'est pas encore codé.
+
+| Événement | Action |
+|-----------|--------|
+| Agent error | Alerte CyberDefence auto |
+| LoRA switch | Stats temps réel Dashboard |
+| Perf spike | Alerte Observability |
+| Mock hit | Compteur Dashboard |
+
+```go
+// Route à ajouter dans orchestrateur
+router.HandleFunc("/api/observer/events", o.handleObserverEvents)
+router.HandleFunc("/api/stats", o.handleStats)  // métriques réelles par agent
+```
+
+---
+
+## 🎓 Priorité #2 — LoRA Router v5.2.0 *(1 mois)*
+
+Chaque agent charge automatiquement son adapteur LoRA selon le contexte.
 
 | Adapteur | Déclenché par |
 |----------|---------------|
@@ -81,103 +98,75 @@ lora:
 
 ---
 
-## 👁️ Priorité #2 — Observer Bus v4.3.0 *(2 jours)*
+## 🧠 Priorité #3 — ReMe Memory v5.3.0
 
-| Événement | Action déclenchée |
-|-----------|------------------|
-| Mock hit | Dashboard +1 |
-| LoRA switch | Stats realtime |
-| Agent error | Alerte CyberDefence |
-| Perf spike | `/api/metrics` |
+Mémoire persistante cross-session par agent (inspiré CoPaw/AgentScope).
+
+```
+SQLite par agent — cross-session
+memory/agent_coder/conversations.db
+Récupération contexte 30j max
+```
+
+Impact : garde l'historique Discord même après `docker compose down`
 
 ---
 
-## 🤝 Inspiration CoPaw — v4.4.0 *(À réfléchir)*
+## 🔌 Priorité #4 — MCP Endpoint v5.4.0
 
-**Benchmark CoPaw (AgentScope/Alibaba)** : multi-canaux + ReMe mémoire. À évaluer pour différenciation.
-
-| Feature CoPaw | Intérêt | Statut | Complexité |
-|---------------|---------|--------|------------|
-| **ReMe Memory** | ✅ Haute | ⏳ Plan | 🟡 Moyen |
-| **Multi-canaux** | ⚠️ Moyen | 📋 TODO | 🟠 Difficile |
-| **MCP Tools** | ✅ Haute | 📋 TODO | 🟢 Facile |
-
-### 🎯 1️⃣ ReMe Memory Store *(v4.4.1)*
-```
-- SQLite/JSON par agent — cross-session
-- `memory/agent_coder/conversations.db`
-- Récupération contexte 30j max
-```
-**Impact** : Garde l'historique Discord même après `docker compose down`
-
-### 🎯 2️⃣ MCP Endpoint *(v4.4.2)*
 ```
 POST /api/mcp/{tool}
-- Standardise outils externes (VSCode, Git, terminal)
-- Compatible AgentScope ecosystem
+Standardise outils externes (VSCode, Git, terminal)
+Compatible AgentScope ecosystem
 ```
-**Impact** : Marketplace compatible 2027
-
-### 🎯 3️⃣ Telegram Bot *(Optionnel v4.5.0)*
-```
-@JarvisTelegram parallèle à Discord
-- 2ème canal Jarvis
-```
-**Impact** : +20% utilisateurs (Telegram > Discord dev FR)
 
 ---
 
-## 🛠️ Plan v4.5.0 *(4 semaines)*
+## 📱 Optionnel — Telegram Bot v5.5.0
+
+Parallèle au bot Discord Jarvis, 2ème canal. Impact estimé +20% utilisateurs (Telegram > Discord dev FR).
+
+---
+
+## 📊 Plan v5.x *(8 semaines)*
 
 | Semaine | Objectif | Statut |
 |---------|----------|--------|
-| 1 | Mock Layer + tests instantanés | ✅ |
-| 2 | LoRA Router — 10 agents spécialisés | 🔥 En cours |
-| 3 | Observer Bus + CyberDef étendu | ⏳ |
-| 4 | **Release v4.5.0 "Lightning Framework"** | ⏳ |
+| 1–2 | Observer Bus + `/api/stats` réelles | 🔥 Prochain |
+| 3–4 | LoRA Router — 10 agents spécialisés | ⏳ |
+| 5–6 | ReMe Memory — historique cross-session | ⏳ |
+| 7–8 | **Release v5.5.0** | ⏳ |
 
 ---
 
 ## 🔮 Vision 2027 — Marketplace
-
-| Agent | Spécialité |
-|-------|------------|
-| 👑 Coder Pro | Python · JS · Go · Rust |
-| ₿ Crypto Expert | Smart contracts · MEV bots Solana |
-| 🎮 GameDev | Unity C# · Godot · Pygame |
-| 🛡️ Pentest Pro | Burp · Metasploit · Nmap auto |
-| 🤖 ML Engineer | PyTorch · TensorFlow · datasets |
-| 🇫🇷 Français Tech | Docs · code · emails techniques |
 
 ```bash
 just marketplace install crypto   # Agent Crypto live
 just marketplace list             # Voir tous les LoRA disponibles
 ```
 
----
-
-## 📊 Évolution
-
-| Version | Agents | Perf | Features |
-|---------|--------|------|----------|
-| ✅ v4.0 | 6 | Ollama | Discord + Web |
-| ✅ v4.2 | 6 | Mock 52x | CyberDef + Scripts |
-| 🔥 v4.5 | 10+ | LoRA auto | LoRA + Observer |
-| ⭐ 2027 | 50+ | **ReMe + MCP** | Marketplace + Multi-canaux |
+| Agent | Spécialité |
+|-------|------------|
+| 👑 Coder Pro | Python · JS · Go · Rust |
+| ₿ Crypto Expert | Smart contracts · MEV |
+| 🎮 GameDev | Unity C# · Godot |
+| 🛡️ Pentest Pro | Burp · Metasploit · Nmap |
+| 🤖 ML Engineer | PyTorch · TensorFlow |
+| 🇫🇷 Français Tech | Docs · code · emails |
 
 ---
 
-## 🎯 Prochaines étapes *(7 jours)*
+## 📈 Évolution
 
-1. ✅ `just mock-on` — tests 0.5s
-2. 🔥 **LoRA Router v4.3.0** — 10 agents spécialisés
-3. 👁️ **Observer Bus** — 100% observabilité
-4. 🤝 **ReMe Memory** (CoPaw) — évaluer v4.4.1
-5. `git push v4.5.0` — release GitHub
+| Version | UI | Features |
+|---------|----|----------|
+| ✅ v4.0 | Web basique | Discord + CyberDefence |
+| ✅ v4.2 | Web basique | Mock 52× + Scripts install |
+| ✅ **v5.0** | **Nexus complet** | **8 pages · Training · Datasets · Métriques live** |
+| 🔥 v5.2 | Nexus + LoRA UI | LoRA Router + Observer |
+| ⭐ 2027 | Nexus + Marketplace | ReMe + MCP + 50+ agents |
 
 ---
 
-⭐ [github.com/loic31000/local-agents](https://github.com/loic31000/local-agents) — Local Agents · Framework IA Local #1 (2026–2027)
-
-
-**Local Agents > CoPaw** sur sécurité + simplicité, mais **ReMe + MCP** = killer features 2027 ! 🎯
+⭐ [github.com/loic31000/local-agents](https://github.com/loic31000/local-agents)

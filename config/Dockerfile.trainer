@@ -3,24 +3,23 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
+    git curl \
   && rm -rf /var/lib/apt/lists/*
 
-# CPU-only PyTorch + training stack for low-resource environments.
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.5.1
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-# Axolotl from official source; PyPI package may not expose the CLI module.
 RUN pip install --no-cache-dir \
-    git+https://github.com/OpenAccess-AI-Collective/axolotl.git \
-    accelerate>=0.34.0 \
     transformers>=4.44.0 \
     datasets>=2.20.0 \
+    accelerate>=0.34.0 \
     peft>=0.12.0 \
-    pyyaml==6.0.1
+    numpy \
+    pyyaml \
+    psycopg2-binary
 
 COPY agents ./agents
 COPY scripts ./scripts
 
-CMD ["python", "-V"]
+ENTRYPOINT ["python", "scripts/train.py"]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train a Discord moderation classifier (DistilBERT, CPU-friendly)."""
+"""Train a moderation classifier (DistilBERT, CPU/GPU)."""
 
 from __future__ import annotations
 
@@ -155,9 +155,10 @@ class TrainConfig:
     logging_steps: int = 1
     eval_split_ratio: float = 0.15
     seed: int = 42
+    device: str = "cpu"
 
 
-def _print_event(payload: dict[str, Any]) -> None:
+def _print_event(payload: dict) -> None:
     print(json.dumps(payload, ensure_ascii=True), flush=True)
 
 
@@ -202,7 +203,7 @@ def _typo_drop(text: str, rng: random.Random) -> str:
     return " ".join(words)
 
 
-def _augment(text: str, label: int, seed: int) -> list[str]:
+def _augment(text: str, label: int, seed: int) -> list:
     rng = random.Random(seed)
     prefixes = {
         0: ["yo ", "hey ", "lol ", "ngl ", "omg "],
@@ -225,53 +226,47 @@ def _augment(text: str, label: int, seed: int) -> list[str]:
     ]
 
 
-def generate_dataset(seed: int = 42) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    rows: list[dict[str, Any]] = []
+def generate_dataset(seed: int = 42) -> tuple:
+    rows = []
     random.seed(seed)
-
     for examples, label in BASE_DATA:
         for text in examples:
             aug_seed = abs(hash((text, label, seed))) % (2**31)
             for variant in _augment(text, label, aug_seed):
                 rows.append({"text": variant.strip(), "label": label})
-
     random.shuffle(rows)
     split_idx = int(len(rows) * 0.85)
-    train_rows = rows[:split_idx]
-    eval_rows = rows[split_idx:]
-    return train_rows, eval_rows
+    return rows[:split_idx], rows[split_idx:]
 
 
-def save_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+def save_jsonl(path: Path, rows: list) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
+    with path.open("w", encoding="utf-8") as f:
         for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def ensure_dataset(cfg: TrainConfig) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def ensure_dataset(cfg: TrainConfig) -> tuple:
     train_path = Path(cfg.train_file)
     eval_path = Path(cfg.eval_file)
 
-    def _is_valid(rows: list[dict[str, Any]]) -> bool:
+    def _is_valid(rows: list) -> bool:
         if not rows:
             return False
         for row in rows:
             if "text" not in row or "label" not in row:
                 return False
-            if not isinstance(row["text"], str):
-                return False
-            if not isinstance(row["label"], int):
+            if not isinstance(row["text"], str) or not isinstance(row["label"], int):
                 return False
         return True
 
     if train_path.exists() and eval_path.exists():
         _print_event({"event": "dataset_found", "train_file": cfg.train_file, "eval_file": cfg.eval_file})
-        train_rows = [json.loads(line) for line in train_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        eval_rows = [json.loads(line) for line in eval_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        train_rows = [json.loads(l) for l in train_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        eval_rows  = [json.loads(l) for l in eval_path.read_text(encoding="utf-8").splitlines() if l.strip()]
         if _is_valid(train_rows) and _is_valid(eval_rows):
             return train_rows, eval_rows
-        _print_event({"event": "dataset_incompatible", "reason": "legacy_or_invalid_schema", "action": "regenerate"})
+        _print_event({"event": "dataset_incompatible", "action": "regenerate"})
 
     train_rows, eval_rows = generate_dataset(seed=cfg.seed)
     save_jsonl(train_path, train_rows)
@@ -283,39 +278,31 @@ def ensure_dataset(cfg: TrainConfig) -> tuple[list[dict[str, Any]], list[dict[st
 def _compute_metrics_builder(num_labels: int):
     import numpy as np
 
-    def compute_metrics(eval_pred: tuple[Any, Any]) -> dict[str, float]:
+    def compute_metrics(eval_pred):
         logits, labels = eval_pred
         preds = np.argmax(logits, axis=-1)
-
         acc = float((preds == labels).mean())
-        precision_scores: list[float] = []
-        recall_scores: list[float] = []
-        f1_scores: list[float] = []
-
+        precision_scores, recall_scores, f1_scores = [], [], []
         for class_id in range(num_labels):
             tp = int(((preds == class_id) & (labels == class_id)).sum())
             fp = int(((preds == class_id) & (labels != class_id)).sum())
             fn = int(((preds != class_id) & (labels == class_id)).sum())
-
             precision = tp / (tp + fp) if (tp + fp) else 0.0
-            recall = tp / (tp + fn) if (tp + fn) else 0.0
-            f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
-
+            recall   = tp / (tp + fn) if (tp + fn) else 0.0
+            f1       = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
             precision_scores.append(precision)
             recall_scores.append(recall)
             f1_scores.append(f1)
-
         return {
-            "accuracy": acc,
+            "accuracy":  acc,
             "precision": float(sum(precision_scores) / len(precision_scores)),
-            "recall": float(sum(recall_scores) / len(recall_scores)),
-            "f1": float(sum(f1_scores) / len(f1_scores)),
+            "recall":    float(sum(recall_scores)    / len(recall_scores)),
+            "f1":        float(sum(f1_scores)        / len(f1_scores)),
         }
-
     return compute_metrics
 
 
-def run_training(cfg: TrainConfig, train_rows: list[dict[str, Any]], eval_rows: list[dict[str, Any]]) -> dict[str, Any]:
+def run_training(cfg: TrainConfig, train_rows: list, eval_rows: list) -> dict:
     import torch
     from datasets import Dataset
     from transformers import (
@@ -327,10 +314,26 @@ def run_training(cfg: TrainConfig, train_rows: list[dict[str, Any]], eval_rows: 
         TrainingArguments,
     )
 
+    # ── Device setup ──────────────────────────────────────────────────
+    device = cfg.device
+    if device == "cuda":
+        if torch.cuda.is_available():
+            _print_event({"event": "log", "message": "GPU: " + torch.cuda.get_device_name(0)})
+        else:
+            _print_event({"event": "log", "message": "CUDA non disponible, fallback CPU"})
+            device = "cpu"
+    elif device == "mps":
+        if not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()):
+            _print_event({"event": "log", "message": "MPS non disponible, fallback CPU"})
+            device = "cpu"
+
+    use_gpu = device == "cuda"
+    _print_event({"event": "log", "message": "Device: " + device})
+
     def supports_training_argument(name: str) -> bool:
         return name in inspect.signature(TrainingArguments.__init__).parameters
 
-    def set_supported_argument(kwargs: dict[str, Any], value: Any, *names: str) -> None:
+    def set_supported_argument(kwargs: dict, value: Any, *names: str) -> None:
         for name in names:
             if supports_training_argument(name):
                 kwargs[name] = value
@@ -343,26 +346,26 @@ def run_training(cfg: TrainConfig, train_rows: list[dict[str, Any]], eval_rows: 
     logs_path.mkdir(parents=True, exist_ok=True)
     step_log_file = logs_path / "step_metrics.jsonl"
 
-    _print_event({"event": "start", "model": cfg.model_id, "labels": LABELS})
+    _print_event({"event": "start", "model": cfg.model_id, "labels": LABELS, "device": device})
 
     train_ds = Dataset.from_list(train_rows)
-    eval_ds = Dataset.from_list(eval_rows)
+    eval_ds  = Dataset.from_list(eval_rows)
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.model_id)
 
-    def tokenize(batch: dict[str, Any]) -> dict[str, Any]:
+    def tokenize(batch: dict) -> dict:
         return tokenizer(batch["text"], truncation=True, max_length=cfg.max_length)
 
     train_tok = train_ds.map(tokenize, batched=True, remove_columns=["text"])
-    eval_tok = eval_ds.map(tokenize, batched=True, remove_columns=["text"])
+    eval_tok  = eval_ds.map(tokenize,  batched=True, remove_columns=["text"])
     train_tok = train_tok.rename_column("label", "labels")
-    eval_tok = eval_tok.rename_column("label", "labels")
+    eval_tok  = eval_tok.rename_column("label",  "labels")
 
     model = AutoModelForSequenceClassification.from_pretrained(
         cfg.model_id,
         num_labels=len(LABELS),
-        id2label={idx: label for idx, label in enumerate(LABELS)},
-        label2id={label: idx for idx, label in enumerate(LABELS)},
+        id2label={i: l for i, l in enumerate(LABELS)},
+        label2id={l: i for i, l in enumerate(LABELS)},
     )
     model.gradient_checkpointing_enable()
 
@@ -375,53 +378,64 @@ def run_training(cfg: TrainConfig, train_rows: list[dict[str, Any]], eval_rows: 
             payload = {"event": "log", "step": int(state.global_step)}
             payload.update({k: float(v) if isinstance(v, (int, float)) else v for k, v in logs.items()})
             _print_event(payload)
-            with step_log_file.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            with step_log_file.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
         def on_epoch_end(self, args, state, control, **kwargs):
             _print_event({"event": "epoch_end", "epoch": float(state.epoch or 0.0), "step": int(state.global_step)})
 
+        def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+            if metrics:
+                _print_event({
+                    "event":         "eval",
+                    "step":          int(state.global_step),
+                    "eval_loss":     metrics.get("eval_loss"),
+                    "eval_accuracy": metrics.get("eval_accuracy"),
+                    "eval_f1":       metrics.get("eval_f1"),
+                })
+
     current_batch_size = cfg.batch_size
     train_result = None
-    eval_result = None
-    trainer = None
+    eval_result  = None
+    trainer      = None
 
     while True:
         train_args_kwargs = {
-            "output_dir": cfg.output_dir,
-            "num_train_epochs": cfg.num_epochs,
-            "per_device_train_batch_size": current_batch_size,
-            "per_device_eval_batch_size": current_batch_size,
-            "gradient_accumulation_steps": cfg.gradient_accumulation_steps,
-            "learning_rate": cfg.learning_rate,
-            "weight_decay": cfg.weight_decay,
-            "warmup_ratio": cfg.warmup_ratio,
-            "logging_steps": cfg.logging_steps,
-            "logging_strategy": "steps",
-            "save_strategy": "epoch",
-            "load_best_model_at_end": True,
-            "metric_for_best_model": "f1",
-            "greater_is_better": True,
-            "save_total_limit": 2,
-            "gradient_checkpointing": True,
-            "dataloader_num_workers": 0,
-            "report_to": [],
-            "fp16": False,
-            "bf16": False,
-            "disable_tqdm": False,
+            "output_dir":                    cfg.output_dir,
+            "num_train_epochs":              cfg.num_epochs,
+            "per_device_train_batch_size":   current_batch_size,
+            "per_device_eval_batch_size":    current_batch_size,
+            "gradient_accumulation_steps":   cfg.gradient_accumulation_steps,
+            "learning_rate":                 cfg.learning_rate,
+            "weight_decay":                  cfg.weight_decay,
+            "warmup_ratio":                  cfg.warmup_ratio,
+            "logging_steps":                 cfg.logging_steps,
+            "logging_strategy":              "steps",
+            "save_strategy":                 "epoch",
+            "load_best_model_at_end":        True,
+            "metric_for_best_model":         "f1",
+            "greater_is_better":             True,
+            "save_total_limit":              2,
+            "gradient_checkpointing":        True,
+            "dataloader_num_workers":        0,
+            "report_to":                     [],
+            "fp16":                          use_gpu and torch.cuda.is_available(),
+            "bf16":                          False,
+            "use_cpu":                       not use_gpu,
+            "disable_tqdm":                  False,
         }
         set_supported_argument(train_args_kwargs, "epoch", "evaluation_strategy", "eval_strategy")
 
         train_args = TrainingArguments(**train_args_kwargs)
 
         trainer_kwargs = {
-            "model": model,
-            "args": train_args,
-            "train_dataset": train_tok,
-            "eval_dataset": eval_tok,
-            "data_collator": data_collator,
+            "model":           model,
+            "args":            train_args,
+            "train_dataset":   train_tok,
+            "eval_dataset":    eval_tok,
+            "data_collator":   data_collator,
             "compute_metrics": _compute_metrics_builder(len(LABELS)),
-            "callbacks": [JsonLogCallback()],
+            "callbacks":       [JsonLogCallback()],
         }
         if supports_trainer_argument("tokenizer"):
             trainer_kwargs["tokenizer"] = tokenizer
@@ -431,72 +445,71 @@ def run_training(cfg: TrainConfig, train_rows: list[dict[str, Any]], eval_rows: 
         trainer = Trainer(**trainer_kwargs)
 
         try:
-            _print_event(
-                {
-                    "event": "training_start",
-                    "epochs": cfg.num_epochs,
-                    "batch_size": current_batch_size,
-                    "gradient_accumulation_steps": cfg.gradient_accumulation_steps,
-                    "logging_steps": cfg.logging_steps,
-                }
-            )
+            _print_event({
+                "event":                      "training_start",
+                "epochs":                     cfg.num_epochs,
+                "batch_size":                 current_batch_size,
+                "gradient_accumulation_steps": cfg.gradient_accumulation_steps,
+                "device":                     device,
+            })
             train_result = trainer.train()
-            eval_result = trainer.evaluate()
+            eval_result  = trainer.evaluate()
             break
         except RuntimeError as exc:
-            message = str(exc).lower()
-            if "out of memory" in message and current_batch_size > 1:
+            if "out of memory" in str(exc).lower() and current_batch_size > 1:
                 current_batch_size = max(1, current_batch_size // 2)
                 _print_event({"event": "oom_retry", "next_batch_size": current_batch_size})
                 continue
-            _print_event({"event": "training_error", "error": str(exc), "batch_size": current_batch_size})
+            _print_event({"event": "training_error", "error": str(exc)})
             raise
         except Exception as exc:
-            _print_event({"event": "training_error", "error": str(exc), "batch_size": current_batch_size})
-            raise
+            _print_event({"event": "training_error", "error": str(exc)})
             raise
 
     trainer.save_model(cfg.output_dir)
     tokenizer.save_pretrained(cfg.output_dir)
 
     train_metrics = {k: float(v) if isinstance(v, (int, float)) else v for k, v in (train_result.metrics or {}).items()}
-    eval_metrics = {k: float(v) if isinstance(v, (int, float)) else v for k, v in (eval_result or {}).items()}
+    eval_metrics  = {k: float(v) if isinstance(v, (int, float)) else v for k, v in (eval_result or {}).items()}
 
     report = {
-        "model": cfg.model_id,
-        "labels": LABELS,
-        "dataset": {"train": len(train_rows), "eval": len(eval_rows)},
-        "config": asdict(cfg),
-        "train_metrics": train_metrics,
-        "eval_metrics": eval_metrics,
+        "model":          cfg.model_id,
+        "labels":         LABELS,
+        "device":         device,
+        "dataset":        {"train": len(train_rows), "eval": len(eval_rows)},
+        "config":         asdict(cfg),
+        "train_metrics":  train_metrics,
+        "eval_metrics":   eval_metrics,
         "best_checkpoint": trainer.state.best_model_checkpoint,
-        "output_dir": cfg.output_dir,
-        "step_log": str(step_log_file),
+        "output_dir":     cfg.output_dir,
+        "step_log":       str(step_log_file),
     }
 
     report_path = logs_path / "training_report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-
     _print_event({"event": "complete", "report": str(report_path), "output_dir": cfg.output_dir})
     return report
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train DistilBERT moderation classifier")
-    parser.add_argument("--model-id", default=os.getenv("MODEL_ID", "distilbert-base-uncased"))
-    parser.add_argument("--output-dir", default=os.getenv("OUTPUT_DIR", "/models/jarvis-moderation-ft"))
-    parser.add_argument("--train-file", default=os.getenv("TRAIN_FILE", "/data/dataset/train.jsonl"))
-    parser.add_argument("--eval-file", default=os.getenv("EVAL_FILE", "/data/dataset/eval.jsonl"))
-    parser.add_argument("--logs-dir", default=os.getenv("LOGS_DIR", "/logs"))
-    parser.add_argument("--max-length", type=int, default=int(os.getenv("MAX_LEN", "128")))
-    parser.add_argument("--epochs", type=int, default=int(os.getenv("EPOCHS", "5")))
-    parser.add_argument("--batch-size", type=int, default=int(os.getenv("BATCH_SIZE", "1")))
+    parser = argparse.ArgumentParser(description="Train moderation classifier")
+    parser.add_argument("--model-id",    default=os.getenv("MODEL_ID",    "distilbert-base-uncased"))
+    parser.add_argument("--output-dir",  default=os.getenv("OUTPUT_DIR",  "/models/jarvis-moderation-ft"))
+    parser.add_argument("--train-file",  default=os.getenv("TRAIN_FILE",  "/data/dataset/train.jsonl"))
+    parser.add_argument("--eval-file",   default=os.getenv("EVAL_FILE",   "/data/dataset/eval.jsonl"))
+    parser.add_argument("--logs-dir",    default=os.getenv("LOGS_DIR",    "/logs"))
+    parser.add_argument("--max-length",  type=int,   default=int(os.getenv("MAX_LEN",        "128")))
+    parser.add_argument("--epochs",      type=int,   default=int(os.getenv("EPOCHS",         "5")))
+    parser.add_argument("--batch-size",  type=int,   default=int(os.getenv("BATCH_SIZE",     "1")))
     parser.add_argument("--gradient-accumulation-steps", type=int, default=int(os.getenv("GRAD_ACC_STEPS", "4")))
     parser.add_argument("--learning-rate", type=float, default=float(os.getenv("LEARNING_RATE", "2e-5")))
-    parser.add_argument("--weight-decay", type=float, default=float(os.getenv("WEIGHT_DECAY", "0.01")))
-    parser.add_argument("--warmup-ratio", type=float, default=float(os.getenv("WARMUP_RATIO", "0.1")))
-    parser.add_argument("--logging-steps", type=int, default=int(os.getenv("LOGGING_STEPS", "1")))
-    parser.add_argument("--seed", type=int, default=int(os.getenv("SEED", "42")))
+    parser.add_argument("--weight-decay",  type=float, default=float(os.getenv("WEIGHT_DECAY",  "0.01")))
+    parser.add_argument("--warmup-ratio",  type=float, default=float(os.getenv("WARMUP_RATIO",  "0.1")))
+    parser.add_argument("--logging-steps", type=int,   default=int(os.getenv("LOGGING_STEPS",   "1")))
+    parser.add_argument("--seed",          type=int,   default=int(os.getenv("SEED",            "42")))
+    parser.add_argument("--device",        type=str,   default=os.getenv("DEVICE", "cpu"),
+                        choices=["cpu", "cuda", "mps"],
+                        help="Device (cpu/cuda/mps)")
     parser.add_argument("--generate-only", action="store_true", help="Only generate train/eval JSONL")
     return parser.parse_args()
 
@@ -518,6 +531,7 @@ def main() -> None:
         warmup_ratio=args.warmup_ratio,
         logging_steps=args.logging_steps,
         seed=args.seed,
+        device=args.device,
     )
 
     random.seed(cfg.seed)

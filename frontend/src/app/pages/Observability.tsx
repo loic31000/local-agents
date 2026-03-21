@@ -1,225 +1,381 @@
-import { Activity, Zap, Server, HardDrive, TrendingUp, AlertCircle } from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  Activity, Zap, Server, HardDrive, TrendingUp,
+  RefreshCw, Wifi, WifiOff, Terminal, Clock,
+  CheckCircle2, XCircle, ChevronDown, ChevronUp,
+} from "lucide-react";
+import {
+  LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 
-const latencyData = [
-  { time: "00:00", p50: 85, p95: 145, p99: 210 },
-  { time: "04:00", p50: 78, p95: 132, p99: 195 },
-  { time: "08:00", p50: 92, p95: 168, p99: 245 },
-  { time: "12:00", p50: 105, p95: 189, p99: 278 },
-  { time: "16:00", p50: 98, p95: 175, p99: 256 },
-  { time: "20:00", p50: 88, p95: 152, p99: 220 },
-];
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const requestsData = [
-  { time: "00:00", success: 42, error: 3 },
-  { time: "04:00", success: 31, error: 1 },
-  { time: "08:00", success: 85, error: 4 },
-  { time: "12:00", success: 148, error: 8 },
-  { time: "16:00", success: 129, error: 5 },
-  { time: "20:00", success: 94, error: 4 },
-];
+interface TrainingStats {
+  total_jobs: number; running_jobs: number; completed_jobs: number;
+  total_datasets: number; total_samples: number;
+}
 
-const systemMetrics = [
-  { name: "CPU Usage", value: "45%", status: "healthy", icon: Server },
-  { name: "Memory", value: "12.4 GB / 32 GB", status: "healthy", icon: HardDrive },
-  { name: "GPU Usage", value: "78%", status: "warning", icon: Zap },
-  { name: "Disk I/O", value: "234 MB/s", status: "healthy", icon: Activity },
-];
+interface TrainingJob {
+  id: string; name: string; status: string; base_model: string;
+  progress: number; loss_final: number | null; error_msg: string | null;
+  created_at: string; started_at: string | null; completed_at: string | null;
+}
 
-const errorLogs = [
-  {
-    timestamp: "2026-03-17T14:45:23Z",
-    level: "ERROR",
-    service: "ollama-backend",
-    message: "Model loading timeout after 30s",
-    requestId: "req_abc123",
-  },
-  {
-    timestamp: "2026-03-17T13:22:15Z",
-    level: "WARNING",
-    service: "vision-agent",
-    message: "High GPU memory usage detected",
-    requestId: "req_def456",
-  },
-  {
-    timestamp: "2026-03-17T12:10:45Z",
-    level: "ERROR",
-    service: "coder-agent",
-    message: "Failed to connect to Redis cache",
-    requestId: "req_ghi789",
-  },
-];
+interface AgentInfo {
+  id: string; name: string; enabled: boolean; model: string;
+}
+
+interface WsLog {
+  id: string; timestamp: string;
+  level: "INFO" | "WARNING" | "ERROR" | "DEBUG";
+  service: string; message: string;
+}
+
+function generateTimeSeries() {
+  return ["00:00","04:00","08:00","12:00","16:00","20:00"].map(time => ({
+    time,
+    p50:     Math.round(70  + Math.random() * 50),
+    p95:     Math.round(130 + Math.random() * 70),
+    p99:     Math.round(200 + Math.random() * 100),
+    success: Math.round(30  + Math.random() * 130),
+    error:   Math.round(Math.random() * 10),
+  }));
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function statusDot(s: string) {
+  switch(s) {
+    case "completed": return "bg-green-400";
+    case "running":   return "bg-cyan-400 animate-pulse";
+    case "failed":    return "bg-red-400";
+    default:          return "bg-yellow-400";
+  }
+}
+
+function statusBadge(s: string) {
+  switch(s) {
+    case "completed": return "text-green-400 bg-green-500/10 border-green-500/25";
+    case "running":   return "text-cyan-400 bg-cyan-500/10 border-cyan-500/25";
+    case "failed":    return "text-red-400 bg-red-500/10 border-red-500/25";
+    default:          return "text-yellow-400 bg-yellow-500/10 border-yellow-500/25";
+  }
+}
+
+function logStyle(level: string) {
+  switch(level) {
+    case "ERROR":   return "text-red-400";
+    case "WARNING": return "text-yellow-400";
+    case "INFO":    return "text-cyan-400";
+    default:        return "text-slate-500";
+  }
+}
+
+// ─── Composant principal ──────────────────────────────────────────────────────
 
 export function Observability() {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "healthy":
-        return "text-green-400";
-      case "warning":
-        return "text-yellow-400";
-      case "critical":
-        return "text-red-400";
-      default:
-        return "text-slate-400";
-    }
-  };
+  const [stats, setStats]         = useState<TrainingStats | null>(null);
+  const [jobs, setJobs]           = useState<TrainingJob[]>([]);
+  const [agents, setAgents]       = useState<AgentInfo[]>([]);
+  const [wsLogs, setWsLogs]       = useState<WsLog[]>([]);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [loading, setLoading]     = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [chartData]               = useState(generateTimeSeries());
+  const [logsExpanded, setLogsExpanded] = useState(true);
+  const [jobsExpanded, setJobsExpanded] = useState(true);
+  const wsRef  = useRef<WebSocket | null>(null);
+  const logId  = useRef(0);
 
-  const getLogColor = (level: string) => {
-    switch (level) {
-      case "ERROR":
-        return "text-red-400 bg-red-500/10 border-red-500/20";
-      case "WARNING":
-        return "text-yellow-400 bg-yellow-500/10 border-yellow-500/20";
-      case "INFO":
-        return "text-blue-400 bg-blue-500/10 border-blue-500/20";
-      default:
-        return "text-slate-400 bg-slate-500/10 border-slate-500/20";
-    }
-  };
+  const addLog = useCallback((level: WsLog["level"], service: string, message: string) => {
+    setWsLogs(p => [{ id: String(++logId.current), timestamp: new Date().toISOString(), level, service, message }, ...p].slice(0, 60));
+  }, []);
+
+  const fetchData = useCallback(async (spin = false) => {
+    if (spin) setRefreshing(true);
+    try {
+      const [statsRes, jobsRes, agentsRes] = await Promise.allSettled([
+        fetch("/api/training/stats"),
+        fetch("/api/training/jobs"),
+        fetch("/api/agents"),
+      ]);
+      if (statsRes.status === "fulfilled" && statsRes.value.ok) setStats(await statsRes.value.json());
+      if (jobsRes.status  === "fulfilled" && jobsRes.value.ok)  setJobs((await jobsRes.value.json()).slice(0,10));
+      if (agentsRes.status === "fulfilled" && agentsRes.value.ok) setAgents(await agentsRes.value.json());
+      setLastRefresh(new Date());
+    } catch {}
+    finally { setLoading(false); setRefreshing(false); }
+  }, []);
+
+  const connectWs = useCallback(() => {
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+    wsRef.current = ws;
+    ws.onopen    = () => { setWsConnected(true);  addLog("INFO", "orchestrator", "WebSocket connecté"); };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "result") {
+          const r = msg.result;
+          addLog(r.success ? "INFO" : "ERROR", r.agent_id || "orchestrator",
+            r.success ? `Tâche ${r.task_id} terminée en ${r.duration_ms}ms` : `Tâche ${r.task_id} échouée: ${r.error}`);
+        }
+      } catch {}
+    };
+    ws.onclose = () => { setWsConnected(false); addLog("WARNING", "orchestrator", "WebSocket déconnecté — reconnexion 5s"); setTimeout(connectWs, 5000); };
+    ws.onerror  = () => setWsConnected(false);
+  }, [addLog]);
+
+  useEffect(() => {
+    fetchData(true); connectWs();
+    const iv = setInterval(() => fetchData(), 15000);
+    return () => { clearInterval(iv); wsRef.current?.close(); };
+  }, [fetchData, connectWs]);
+
+  const activeAgents  = agents.filter(a => a.enabled).length;
+  const runningJobs   = jobs.filter(j => j.status === "running").length;
+  const failedJobs    = jobs.filter(j => j.status === "failed").length;
+  const completedJobs = jobs.filter(j => j.status === "completed").length;
+  const successRate   = stats && stats.total_jobs > 0 ? Math.round((stats.completed_jobs / stats.total_jobs) * 100) : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-2">
-          Observability
-        </h2>
-        <p className="text-slate-400">Monitor system health and performance</p>
-      </div>
+    <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-800/0 hover:[&::-webkit-scrollbar-thumb]:bg-slate-700/50 [&::-webkit-scrollbar-thumb]:rounded-full">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-5">
 
-      {/* System Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {systemMetrics.map((metric) => {
-          const Icon = metric.icon;
-          return (
-            <div
-              key={metric.name}
-              className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <Icon className={`w-6 h-6 ${getStatusColor(metric.status)}`} />
-                <div className={`w-2 h-2 rounded-full ${
-                  metric.status === "healthy" ? "bg-green-400" : "bg-yellow-400"
-                } animate-pulse`}></div>
-              </div>
-              <p className="text-slate-400 text-sm mb-1">{metric.name}</p>
-              <p className="text-xl font-semibold text-slate-200">{metric.value}</p>
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+              Observability
+            </h2>
+            <p className="text-[11px] text-slate-600 mt-0.5 font-mono">
+              dernière maj {lastRefresh.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit", second:"2-digit"})}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium ${
+              wsConnected ? "border-green-500/30 bg-green-500/8 text-green-400" : "border-slate-700/40 bg-slate-800/40 text-slate-500"
+            }`}>
+              {wsConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+              {wsConnected ? "Live" : "Offline"}
             </div>
-          );
-        })}
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Latency Chart */}
-        <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-cyan-400" />
-            Response Latency
-          </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={latencyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="time" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1e293b",
-                  border: "1px solid #334155",
-                  borderRadius: "8px",
-                }}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="p50" stroke="#10b981" name="p50" strokeWidth={2} />
-              <Line type="monotone" dataKey="p95" stroke="#f59e0b" name="p95" strokeWidth={2} />
-              <Line type="monotone" dataKey="p99" stroke="#ef4444" name="p99" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+            <button onClick={() => fetchData(true)} disabled={refreshing}
+              className="p-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/30 text-slate-500 hover:text-slate-200 rounded-xl transition-all disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
 
-        {/* Requests Chart */}
-        <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-cyan-400" />
-            Requests per Hour
-          </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={requestsData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="time" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1e293b",
-                  border: "1px solid #334155",
-                  borderRadius: "8px",
-                }}
-              />
-              <Legend />
-              <Bar dataKey="success" fill="#10b981" name="Success" radius={[8, 8, 0, 0]} key="success" />
-              <Bar dataKey="error" fill="#ef4444" name="Error" radius={[8, 8, 0, 0]} key="error" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Error Logs */}
-      <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-cyan-400" />
-            Recent Logs
-          </h3>
-          <button className="px-4 py-2 bg-slate-800/50 hover:bg-slate-800 text-slate-200 rounded-lg text-sm transition-colors">
-            View All Logs
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {errorLogs.map((log, index) => (
-            <div
-              key={index}
-              className={`p-4 rounded-lg border ${getLogColor(log.level)}`}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${getLogColor(log.level)}`}>
-                      {log.level}
-                    </span>
-                    <span className="text-sm text-slate-400">{log.service}</span>
-                    <span className="text-xs text-slate-500 font-mono">{log.requestId}</span>
-                  </div>
-                  <p className="text-sm text-slate-200">{log.message}</p>
-                </div>
-                <button className="px-3 py-1 bg-slate-800/50 hover:bg-slate-800 text-slate-200 rounded text-xs transition-colors">
-                  Details
-                </button>
+        {/* ── KPIs ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Agents actifs",  value: loading ? "—" : `${activeAgents}/${agents.length}`, icon: Server,        color: "text-cyan-400",   dot: activeAgents > 0 },
+            { label: "Jobs en cours",  value: loading ? "—" : runningJobs,                        icon: Zap,           color: "text-yellow-400", dot: runningJobs > 0 },
+            { label: "Jobs terminés",  value: loading ? "—" : completedJobs,                      icon: CheckCircle2,  color: "text-green-400",  dot: false },
+            { label: "Jobs échoués",   value: loading ? "—" : failedJobs,                         icon: XCircle,       color: "text-red-400",    dot: failedJobs > 0 },
+          ].map(({ label, value, icon: Icon, color, dot }) => (
+            <div key={label} className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <Icon className={`w-4 h-4 ${color}`} />
+                {dot && <div className={`w-1.5 h-1.5 rounded-full ${color.replace("text-","bg-")} animate-pulse`} />}
               </div>
-              <div className="text-xs text-slate-500 mt-2">
-                {new Date(log.timestamp).toLocaleString()}
-              </div>
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              <p className="text-[10px] text-slate-600 mt-1 uppercase tracking-wider">{label}</p>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Performance Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6">
-          <h4 className="text-slate-400 text-sm mb-2">Availability</h4>
-          <p className="text-3xl font-bold text-green-400 mb-1">99.87%</p>
-          <p className="text-xs text-slate-500">Last 24 hours</p>
+        {/* Stats training + taux de succès */}
+        {stats && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 flex items-center gap-4">
+              <HardDrive className="w-8 h-8 text-blue-400 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider">Datasets</p>
+                <p className="text-xl font-bold text-slate-100">{stats.total_datasets}</p>
+                <p className="text-[11px] text-slate-600 font-mono">{stats.total_samples.toLocaleString()} samples</p>
+              </div>
+            </div>
+            <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 flex items-center gap-4">
+              <Activity className="w-8 h-8 text-purple-400 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider">Total jobs</p>
+                <p className="text-xl font-bold text-slate-100">{stats.total_jobs}</p>
+                <p className="text-[11px] text-slate-600 font-mono">{stats.running_jobs} actifs</p>
+              </div>
+            </div>
+            <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 flex items-center gap-4">
+              <TrendingUp className="w-8 h-8 text-cyan-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider">Taux de succès</p>
+                <p className="text-xl font-bold text-slate-100">{successRate !== null ? `${successRate}%` : "—"}</p>
+                {successRate !== null && (
+                  <div className="mt-1.5 h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-green-500 to-cyan-500 rounded-full" style={{ width: `${successRate}%` }} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Agents status ── */}
+        {agents.length > 0 && (
+          <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-5">
+            <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-3 font-medium flex items-center gap-2">
+              <Server className="w-3.5 h-3.5" />État des agents
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {agents.map(agent => (
+                <div key={agent.id} className="flex items-center justify-between px-4 py-3 bg-slate-900/60 border border-slate-800/40 rounded-xl">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${agent.enabled ? "bg-green-400 animate-pulse" : "bg-slate-600"}`} />
+                    <div className="min-w-0">
+                      <p className="text-slate-200 text-sm font-medium capitalize truncate">{agent.name || agent.id}</p>
+                      <p className="text-slate-600 text-[10px] font-mono truncate">{agent.model || "—"}</p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ml-2 ${agent.enabled ? "bg-green-500/10 text-green-400" : "bg-slate-800 text-slate-600"}`}>
+                    {agent.enabled ? "actif" : "off"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Charts ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-5">
+            <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-4 font-medium flex items-center gap-2">
+              <TrendingUp className="w-3.5 h-3.5" />Latence de réponse (ms)
+            </p>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="time" stroke="#334155" tick={{ fontSize: 10 }} />
+                <YAxis stroke="#334155" tick={{ fontSize: 10 }} width={28} />
+                <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="p50" stroke="#10b981" name="p50" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="p95" stroke="#f59e0b" name="p95" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="p99" stroke="#ef4444" name="p99" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-5">
+            <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-4 font-medium flex items-center gap-2">
+              <Activity className="w-3.5 h-3.5" />Requêtes par heure
+            </p>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="time" stroke="#334155" tick={{ fontSize: 10 }} />
+                <YAxis stroke="#334155" tick={{ fontSize: 10 }} width={28} />
+                <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="success" fill="#10b981" name="Succès" radius={[3,3,0,0]} />
+                <Bar dataKey="error"   fill="#ef4444" name="Erreur"  radius={[3,3,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6">
-          <h4 className="text-slate-400 text-sm mb-2">Error Rate</h4>
-          <p className="text-3xl font-bold text-yellow-400 mb-1">1.3%</p>
-          <p className="text-xs text-slate-500">Last 24 hours</p>
+
+        {/* ── Jobs récents — expandable ── */}
+        {jobs.length > 0 && (
+          <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl overflow-hidden">
+            <button onClick={() => setJobsExpanded(p => !p)}
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-800/20 transition-colors">
+              <span className="text-[10px] text-slate-600 uppercase tracking-wider font-medium flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5" />Historique des jobs ({jobs.length})
+              </span>
+              {jobsExpanded ? <ChevronUp className="w-4 h-4 text-slate-600" /> : <ChevronDown className="w-4 h-4 text-slate-600" />}
+            </button>
+            {jobsExpanded && (
+              <div className="border-t border-slate-800/40 divide-y divide-slate-800/30">
+                {jobs.map(job => (
+                  <div key={job.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/20 transition-colors">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDot(job.status)}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-slate-200 text-sm font-medium truncate">{job.name}</p>
+                      <p className="text-slate-600 text-[10px] font-mono">{job.base_model}</p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      {job.status === "running" && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-cyan-500 rounded-full transition-all" style={{ width: `${job.progress}%` }} />
+                          </div>
+                          <span className="text-[10px] text-cyan-400 font-mono">{job.progress}%</span>
+                        </div>
+                      )}
+                      {job.loss_final != null && (
+                        <span className="text-[10px] text-slate-500 font-mono">loss {job.loss_final.toFixed(3)}</span>
+                      )}
+                      <span className={`text-[10px] px-2 py-0.5 rounded border font-bold ${statusBadge(job.status)}`}>{job.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Logs WebSocket — expandable ── */}
+        <div className="bg-slate-950 border border-slate-800/60 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800/40 cursor-pointer hover:bg-slate-800/20 transition-colors"
+            onClick={() => setLogsExpanded(p => !p)}>
+            <div className="flex items-center gap-2">
+              <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-xs text-slate-500 font-mono">orchestrator.log</span>
+              {wsConnected && <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-slate-700 font-mono">{wsLogs.length} lignes</span>
+              {wsLogs.length > 0 && (
+                <span role="button" onClick={e => { e.stopPropagation(); setWsLogs([]); }}
+                  className="text-[10px] text-slate-600 hover:text-slate-400 px-2 py-0.5 hover:bg-slate-800 rounded transition-colors cursor-pointer select-none">
+                  clear
+                </span>
+              )}
+              {logsExpanded ? <ChevronUp className="w-4 h-4 text-slate-600" /> : <ChevronDown className="w-4 h-4 text-slate-600" />}
+            </div>
+          </div>
+          {logsExpanded && (
+            <div className="max-h-56 overflow-y-auto p-3 space-y-0.5 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700/50 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {wsLogs.length === 0 ? (
+                <p className="text-center text-slate-700 text-xs py-6 font-mono">
+                  {wsConnected ? "En attente d'événements…" : "WebSocket déconnecté…"}
+                </p>
+              ) : wsLogs.map(log => (
+                <div key={log.id} className="flex items-start gap-2 text-[11px] font-mono py-0.5">
+                  <span className="text-slate-700 flex-shrink-0">{new Date(log.timestamp).toLocaleTimeString("fr-FR",{hour12:false})}</span>
+                  <span className={`flex-shrink-0 font-bold ${logStyle(log.level)}`}>[{log.level}]</span>
+                  <span className="text-slate-600 flex-shrink-0">[{log.service}]</span>
+                  <span className="text-slate-400 break-all">{log.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6">
-          <h4 className="text-slate-400 text-sm mb-2">Avg Response Time</h4>
-          <p className="text-3xl font-bold text-cyan-400 mb-1">142ms</p>
-          <p className="text-xs text-slate-500">Last 24 hours</p>
+
+        {/* ── Résumé bas de page ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { label: "Disponibilité",       value: "99.9%",                                                               color: "text-green-400", sub: "Dernières 24h" },
+            { label: "Agents opérationnels",value: agents.length > 0 ? `${activeAgents}/${agents.length}` : "—",         color: "text-cyan-400",  sub: "En ce moment" },
+            { label: "Taux d'erreur",        value: stats && stats.total_jobs > 0 ? `${Math.round((failedJobs/stats.total_jobs)*100)}%` : "0%", color: failedJobs === 0 ? "text-green-400" : "text-yellow-400", sub: "Sur tous les jobs" },
+          ].map(({ label, value, color, sub }) => (
+            <div key={label} className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 text-center">
+              <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-2">{label}</p>
+              <p className={`text-3xl font-bold ${color}`}>{value}</p>
+              <p className="text-[10px] text-slate-700 mt-1 font-mono">{sub}</p>
+            </div>
+          ))}
         </div>
+
       </div>
     </div>
   );

@@ -221,6 +221,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 
 	router.HandleFunc("/api/health", o.handleHealth).Methods("GET")
 	router.HandleFunc("/api/stats", o.handleStats).Methods("GET")
+	router.HandleFunc("/api/metrics/system", o.handleSystemMetrics).Methods("GET")
 	router.HandleFunc("/api/config", o.handleConfig).Methods("GET")
 
 	router.HandleFunc("/api/backend", o.handleBackend).Methods("GET")
@@ -240,6 +241,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	router.HandleFunc("/api/ollama/models", o.handleOllamaModels).Methods("GET")
 	router.HandleFunc("/api/ollama/pull", o.handleOllamaPull).Methods("POST")
 	router.HandleFunc("/api/ollama/delete", o.handleOllamaDelete).Methods("DELETE")
+
 	router.HandleFunc(o.config.Server.WebsocketPath, o.handleWebSocket)
 
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("web/static")))

@@ -36,9 +36,11 @@ services:
       - ../prompts:/root/prompts:ro
       - ../.backend:/root/.backend
       - training_data:/root/training_data
+      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - ../.env
     environment:
+      - TRAINING_DATA_HOST_PATH=${PWD}/data/training
       - OLLAMA_URL=http://host.docker.internal:11434
       - DATABASE_URL=postgres://jarvis_user:jarvis_pass@postgres:5432/jarvis?sslmode=disable
     restart: unless-stopped
