@@ -15,7 +15,7 @@ import (
 type BaseAgent struct {
 	info         AgentInfo
 	systemPrompt string
-	router       *llm.BackendRouter  // ← remplace ollamaClient
+	router       *llm.BackendRouter // ← remplace ollamaClient
 	tools        []Tool
 	conversation *Conversation
 }
@@ -218,4 +218,12 @@ func (a *BaseAgent) ResetConversation() {
 
 func (a *BaseAgent) GetConversation() *Conversation {
 	return a.conversation
+}
+
+func (a *BaseAgent) Enable() {
+	a.info.Enabled = true
+}
+
+func (a *BaseAgent) Disable() {
+	a.info.Enabled = false
 }

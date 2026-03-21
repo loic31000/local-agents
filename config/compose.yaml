@@ -1,5 +1,25 @@
 services:
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: local-agents-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: jarvis
+      POSTGRES_USER: jarvis_user
+      POSTGRES_PASSWORD: jarvis_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../scripts/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis_user -d jarvis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   orchestrator:
     build:
       context: ..
@@ -7,22 +27,29 @@ services:
     container_name: local-agents-orchestrator
     ports:
       - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - ../config/config.docker.yaml:/root/config.yaml:ro
       - ../web:/root/web:ro
       - ../prompts:/root/prompts:ro
       - ../.backend:/root/.backend
+      - training_data:/root/training_data
+      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - ../.env
     environment:
+      - TRAINING_DATA_HOST_PATH=${PWD}/data/training
       - OLLAMA_URL=http://host.docker.internal:11434
+      - DATABASE_URL=postgres://jarvis_user:jarvis_pass@postgres:5432/jarvis?sslmode=disable
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
   agents:
     build:
@@ -38,9 +65,11 @@ services:
       - OLLAMA_URL=http://host.docker.internal:11434
       - ORCHESTRATOR_URL=http://orchestrator:8081
       - OLLAMA_MODEL=llama3.2:latest
+      - DATABASE_URL=postgres://jarvis_user:jarvis_pass@postgres:5432/jarvis?sslmode=disable
     volumes:
       - ../agents:/app/agents:ro
       - ../config/config.docker.yaml:/app/config.yaml:ro
+      - training_data:/app/training_data
     restart: unless-stopped
 
   cyberdefence:
@@ -68,3 +97,38 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  trainer:                         
+    image: config-trainer:latest
+    container_name: local-agents-trainer
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:8081
+      - DATABASE_URL=postgres://jarvis_user:jarvis_pass@postgres:5432/jarvis?sslmode=disable
+      - MODEL_ID=distilbert-base-uncased
+      - OUTPUT_DIR=/data/models/jarvis-moderation-ft
+      - TRAIN_FILE=/data/dataset/train.jsonl
+      - EVAL_FILE=/data/dataset/eval.jsonl
+      - LOGS_DIR=/data/logs
+      - EPOCHS=5
+      - BATCH_SIZE=1
+      - GRAD_ACC_STEPS=4
+    volumes:
+      - training_data:/data
+      - ../scripts:/app/scripts:ro
+    restart: "no"
+    profiles:
+      - training
+
+volumes:                            
+  postgres_data:
+    driver: local
+  training_data:
+    driver: local
+

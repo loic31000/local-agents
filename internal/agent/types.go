@@ -18,40 +18,46 @@ type Agent interface {
 
 	// Tools retourne les outils disponibles pour cet agent
 	Tools() []Tool
+
+	// Active un agent
+	Enable()
+
+	// Desactive un agent
+	Disable()
 }
 
 // AgentInfo contient les métadonnées d'un agent
 type AgentInfo struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Model       string   `json:"model"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Model        string   `json:"model"`
 	Capabilities []string `json:"capabilities"`
-	Enabled     bool     `json:"enabled"`
+	Enabled      bool     `json:"enabled"`
 }
 
 // Task représente une tâche à exécuter
 type Task struct {
-	ID          string                 `json:"id"`
-	AgentID     string                 `json:"agent_id"`
-	Type        TaskType               `json:"type"`
-	Input       string                 `json:"input"`
-	Context     map[string]interface{} `json:"context,omitempty"`
-	Priority    int                    `json:"priority"`
-	CreatedAt   time.Time              `json:"created_at"`
-	Timeout     time.Duration          `json:"timeout,omitempty"`
-	ParentID    string                 `json:"parent_id,omitempty"` // Pour les sous-tâches
+	ID        string                 `json:"id"`
+	AgentID   string                 `json:"agent_id"`
+	Type      TaskType               `json:"type"`
+	Input     string                 `json:"input"`
+	Context   map[string]interface{} `json:"context,omitempty"`
+	Priority  int                    `json:"priority"`
+	CreatedAt time.Time              `json:"created_at"`
+	Timeout   time.Duration          `json:"timeout,omitempty"`
+	ParentID  string                 `json:"parent_id,omitempty"` // Pour les sous-tâches
 }
 
 // TaskType définit le type de tâche
 type TaskType string
 
 const (
-	TaskTypeChat      TaskType = "chat"
-	TaskTypeAction    TaskType = "action"
-	TaskTypeAnalyze   TaskType = "analyze"
-	TaskTypeGenerate  TaskType = "generate"
-	TaskTypeAutomate  TaskType = "automate"
+	TaskTypeChat     TaskType = "chat"
+	TaskTypeAction   TaskType = "action"
+	TaskTypeAnalyze  TaskType = "analyze"
+	TaskTypeGenerate TaskType = "generate"
+	TaskTypeAutomate TaskType = "automate"
 )
 
 // Result représente le résultat d'une tâche
@@ -105,17 +111,17 @@ type Conversation struct {
 
 // Message représente un message dans une conversation
 type Message struct {
-	Role      string    `json:"role"` // system, user, assistant, tool
-	Content   string    `json:"content"`
+	Role      string     `json:"role"` // system, user, assistant, tool
+	Content   string     `json:"content"`
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp time.Time  `json:"timestamp"`
 }
 
 // ToolCall représente un appel d'outil par le LLM
 type ToolCall struct {
-	ID       string                 `json:"id"`
-	Tool     string                 `json:"tool"`
-	Params   map[string]interface{} `json:"params"`
-	Result   interface{}            `json:"result,omitempty"`
-	Error    string                 `json:"error,omitempty"`
+	ID     string                 `json:"id"`
+	Tool   string                 `json:"tool"`
+	Params map[string]interface{} `json:"params"`
+	Result interface{}            `json:"result,omitempty"`
+	Error  string                 `json:"error,omitempty"`
 }
