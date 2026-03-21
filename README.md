@@ -39,25 +39,25 @@
 
 | Dashboard |
 |-----------|
-| ![Dashboard](docs/screenshots/Dashboard.png) |
+| ![Dashboard](docs/screenshots/Dashboard.PNG) |
 
 ### Chat
 
 | Chat 1 | Chat 2 |
 |--------|--------|
-| ![Chat 1](docs/screenshots/Chat1.png) | ![Chat 2](docs/screenshots/Chat2.png) |
+| ![Chat 1](docs/screenshots/Chat1.PNG) | ![Chat 2](docs/screenshots/Chat2.PNG) |
 
 ### Models & Training
 
 | Models | Training |
 |--------|----------|
-| ![Models](docs/screenshots/Model.png) | ![Training](docs/screenshots/Training.png) |
+| ![Models](docs/screenshots/Model.PNG) | ![Training](docs/screenshots/Training.PNG) |
 
 ### Datasets, Observability & Settings
 
 | Datasets | Observability | Settings |
 |----------|---------------|----------|
-| ![Datasets](docs/screenshots/Dataset.png) | ![Observability](docs/screenshots/Observability.png) | ![Settings](docs/screenshots/parametres.png) |
+| ![Datasets](docs/screenshots/Dataset.PNG) | ![Observability](docs/screenshots/Observability.PNG) | ![Settings](docs/screenshots/Settings.PNG) |
 
 
 
