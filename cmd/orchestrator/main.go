@@ -401,6 +401,13 @@ func (o *Orchestrator) handleUpdateAgent(w http.ResponseWriter, r *http.Request)
 	existing.Enabled = payload.Enabled
 	existing.Tools = payload.Capabilities
 	o.config.Agents[id] = existing
+	// Mettre à jour le modèle de l'agent en mémoire (pas seulement config.yaml)
+	if a, ok := o.agents[id]; ok {
+
+		if ba, ok := a.(*agent.BaseAgent); ok {
+			ba.SetModel(payload.Model)
+		}
+	}
 	configBytes, err := yaml.Marshal(o.config)
 	if err != nil {
 		log.Warn().Err(err).Str("agent", id).Msg("Erreur marshal config")

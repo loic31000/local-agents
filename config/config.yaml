@@ -1,347 +1,80 @@
-# =============================================================================
-# Local Agents - Configuration
-# =============================================================================
-# Ce fichier configure l'orchestrateur et tous les agents.
-# Les agents custom peuvent être ajoutés sans modifier le code Go.
-# Les variables d'environnement sont supportées : ${VAR:-default}
-# =============================================================================
-
-
-# -----------------------------------------------------------------------------
-# Serveur
-# -----------------------------------------------------------------------------
-
-
 server:
-  host: "0.0.0.0"
-  port: 8081
-  websocket_path: "/ws"
-
-  cors:
-    enabled: true
-    origins:
-      - "http://localhost:*"
-      - "http://127.0.0.1:*"
-
-
-# -----------------------------------------------------------------------------
-# Logging
-# -----------------------------------------------------------------------------
-
-
-logging:
-  level: "${LOG_LEVEL:-info}"
-  format: "json"
-  file: "logs/agents.log"
-
-  fields:
-    - timestamp
-    - level
-    - request_id
-    - agent_id
-    - duration_ms
-    - status
-
-
-# -----------------------------------------------------------------------------
-# Queue de tâches
-# -----------------------------------------------------------------------------
-
-
-queue:
-  type: "memory"
-  max_concurrent: 5
-  task_timeout: "5m"
-  retry_attempts: 3
-  retry_delay: "1s"
-
-
-# -----------------------------------------------------------------------------
-# Modèles Ollama
-# -----------------------------------------------------------------------------
-
-
+    host: 0.0.0.0
+    port: 8081
+    websocket_path: /ws
 ollama:
-  base_url: "http://localhost:11434"
-  default_model: "llama3.2:latest"
-
-  models:
-    coding:  "qwen2.5-coder:1.5b"
-    general: "llama3.2:latest"
-    fast:    "smollm2:360m"
-    french:  "mistral:7b-instruct-q4_0"
-
-  defaults:
-    temperature: 0.7
-    max_tokens: 1024
-    timeout_ms: 60000
-
-
-# -----------------------------------------------------------------------------
-# Agents
-# -----------------------------------------------------------------------------
-
-
+    base_url: http://host.docker.internal:11434
+    default_model: llama3.2:latest
+    models:
+        coding: qwen2.5-coder:1.5b
+        fast: smollm2:360m
+        french: mistral:7b-instruct-q4_0
+        general: llama3.2:latest
 agents:
-
-  # ── CyberDefence ──────────────────────────────────────────────────────────
-  cyberdefence:
-    prompt_file: "prompts/cyberdefence.md"
-    enabled: true
-    monitor: false
-    name: "CyberDefence"
-    description: "Surveillance et sécurité du framework"
-    icon: "🛡️"
-    port: 8086
-    type: "external"
-    endpoint: "http://localhost:8086"
-    model: null
-
-    config:
-      check_interval: 15
-      max_req_per_min: 30
-      replay_ttl_sec: 300
-      auto_block: false
-      auto_block_threshold: 5
-
-    capabilities:
-      - monitoring
-      - rate_limiting
-      - prompt_injection_detection
-      - replay_protection
-      - ip_blocking
-
-  # ── Coder ─────────────────────────────────────────────────────────────────
-  coder:
-    enabled: true
-    monitor: true
-    name: "Coder"
-    description: "Génération et analyse de code"
-    icon: "💻"
-    model: "coding"
-    prompt_file: "prompts/coder.md"
-
-    tools:
-      - vscode
-      - git
-      - terminal
-      - filesystem
-
-    config:
-      temperature: 0.3
-      max_tokens: 2048
-      timeout_ms: 120000
-
-    capabilities:
-      - code_generation
-      - code_review
-      - debugging
-      - refactoring
-
-  # ── Files ─────────────────────────────────────────────────────────────────
-  files:
-    enabled: true
-    monitor: true
-    name: "Files"
-    description: "Gestion de fichiers et dossiers"
-    icon: "📁"
-    model: "general"
-    prompt_file: "prompts/files.md"
-
-    tools:
-      - filesystem
-
-    config:
-      temperature: 0.2
-      max_tokens: 1024
-      timeout_ms: 30000
-
-    capabilities:
-      - file_read
-      - file_write
-      - file_search
-
-    security:
-      allowed_paths:
-        - "${HOME}/Documents"
-        - "${HOME}/Projects"
-        - "${HOME}/Downloads"
-      denied_paths:
-        - "${HOME}/.ssh"
-        - "${HOME}/.gnupg"
-        - "/etc"
-        - "/var"
-      max_file_size_mb: 10
-
-  # ── Email ─────────────────────────────────────────────────────────────────
-  email:
-    enabled: true
-    monitor: true
-    name: "Email"
-    description: "Envoi et gestion d'emails"
-    icon: "✉️"
-    model: "fast"      # smollm2:360m — rapide
-    prompt_file: "prompts/email.md"
-
-    tools:
-      - smtp
-
-    config:
-      temperature: 0.5
-      max_tokens: 1024
-      timeout_ms: 30000
-
-    capabilities:
-      - send_email
-      - draft_email
-
-    smtp:
-      host:     "${EMAIL_SMTP_HOST:-smtp.gmail.com}"
-      port:     "${EMAIL_SMTP_PORT:-587}"
-      user:     "${EMAIL_USER}"
-      password: "${EMAIL_PASS}"
-
-  # ── Social ────────────────────────────────────────────────────────────────
-  social:
-    enabled: false
-    monitor: false
-    name: "Social"
-    description: "Publication sur réseaux sociaux"
-    icon: "🐦"
-    model: "general"
-    prompt_file: "prompts/social.md"
-
-    tools:
-      - twitter
-      - linkedin
-
-    config:
-      temperature: 0.7
-      max_tokens: 512
-      timeout_ms: 30000
-
-    capabilities:
-      - post_twitter
-      - post_linkedin
-
-  # ── Discord ───────────────────────────────────────────────────────────────
-  discord:
-    enabled: true
-    monitor: false
-    name: "Discord"
-    description: "Bot Discord Jarvis"
-    icon: "🎮"
-    model: "fast"
-    prompt_file: "prompts/discord.md"
-    type: "external"
-    endpoint: "python://agents/discord/bot.py"
-
-    config:
-      temperature: 0.6
-      max_tokens: 1024
-      timeout_ms: 90000
-
-    capabilities:
-      - chat
-      - moderation
-      - role_management
-
-    modes:
-      discussion:
-        prompt_file: "discord_discussion.md"
-        model: "general"
-        temperature: 0.7
-      code:
-        prompt_file: "discord_code.md"
-        model: "coding"
-        temperature: 0.3
-      moderation:
-        prompt_file: "discord_moderation.md"
-        model: "fast"
-        temperature: 0.2
-
-
-# -----------------------------------------------------------------------------
-# Agents custom (exemples commentés)
-# -----------------------------------------------------------------------------
-
-  # translator:
-  #   enabled: false
-  #   monitor: false
-  #   name: "Translator"
-  #   description: "Traduction multilingue"
-  #   icon: "🌍"
-  #   model: "french"
-  #   prompt_file: "translator.md"
-  #   tools: []
-  #   config:
-  #     temperature: 0.3
-  #     max_tokens: 2048
-  #   capabilities:
-  #     - translate
-  #   supported_languages: [fr, en, es, de]
-
-  # researcher:
-  #   enabled: false
-  #   monitor: false
-  #   name: "Researcher"
-  #   description: "Recherche et synthèse d'informations"
-  #   icon: "🔍"
-  #   model: "llama3.2:latest"
-  #   prompt_file: "researcher.md"
-  #   tools:
-  #     - web_search
-  #     - filesystem
-  #   config:
-  #     temperature: 0.4
-  #     max_tokens: 4096
-  #   capabilities:
-  #     - search
-  #     - summarize
-  #     - fact_check
-
-
-# -----------------------------------------------------------------------------
-# Outils
-# -----------------------------------------------------------------------------
-
-
-tools:
-  filesystem:
-    name: "Filesystem"
-    description: "Lecture/écriture de fichiers"
-    handler: "internal/tools/filesystem.go"
-
-  terminal:
-    name: "Terminal"
-    description: "Exécution de commandes shell"
-    handler: "internal/tools/terminal.go"
-    config:
-      allowed_commands: [ls, cat, head, tail, grep, find, wc, pwd, echo]
-      denied_commands:  [rm, sudo, chmod, chown, dd, mkfs]
-      timeout_ms: 30000
-
-  git:
-    name: "Git"
-    description: "Opérations Git"
-    handler: "internal/tools/git.go"
-
-  vscode:
-    name: "VSCode"
-    description: "Intégration Visual Studio Code"
-    handler: "internal/tools/vscode.go"
-
-  smtp:
-    name: "SMTP"
-    description: "Envoi d'emails"
-    handler: "internal/tools/email.go"
-
-  twitter:
-    name: "Twitter"
-    description: "Publication sur Twitter/X"
-    handler: "internal/tools/twitter.go"
-
-  linkedin:
-    name: "LinkedIn"
-    description: "Publication sur LinkedIn"
-    handler: "internal/tools/linkedin.go"
+    coder:
+        enabled: true
+        prompt_file: prompts/coder.md
+        model: mistral:7b-instruct-q4_0
+        tools:
+            - vscode
+            - git
+            - terminal
+            - filesystem
+        port: 0
+        endpoint: ""
+        type: ""
+    cyberdefence:
+        enabled: true
+        prompt_file: prompts/cyberdefence.md
+        model: ""
+        tools: []
+        port: 8086
+        endpoint: http://localhost:8086
+        type: external
+    discord:
+        enabled: true
+        prompt_file: prompts/discord.md
+        model: fast
+        tools: []
+        port: 0
+        endpoint: python://agents/discord/bot.py
+        type: external
+    email:
+        enabled: true
+        prompt_file: prompts/email.md
+        model: fast
+        tools:
+            - smtp
+        port: 0
+        endpoint: ""
+        type: ""
+    files:
+        enabled: true
+        prompt_file: prompts/files.md
+        model: general
+        tools:
+            - filesystem
+        port: 0
+        endpoint: ""
+        type: ""
+    social:
+        enabled: false
+        prompt_file: prompts/social.md
+        model: general
+        tools:
+            - twitter
+            - linkedin
+        port: 0
+        endpoint: ""
+        type: ""
+storage:
+    type: ""
+    path: ""
+logging:
+    level: ${LOG_LEVEL:-info}
+    format: json
+    file: logs/agents.log
+queue:
+    type: memory
+    max_concurrent: 5
+    task_timeout: 5m

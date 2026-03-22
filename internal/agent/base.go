@@ -227,3 +227,8 @@ func (a *BaseAgent) Enable() {
 func (a *BaseAgent) Disable() {
 	a.info.Enabled = false
 }
+
+// SetModel met à jour le modèle de l'agent en mémoire
+func (a *BaseAgent) SetModel(model string) {
+	a.info.Model = model
+}
