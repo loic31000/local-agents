@@ -31,6 +31,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      - ../config/config.docker.yaml:/root/config.yaml:ro 
       - ./config.yaml:/root/config.yaml
       - ../web:/root/web:ro
       - ../prompts:/root/prompts:ro

@@ -219,29 +219,34 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 		}
 	}
 
+	//API Métrics, stats, system et config ──────────────────────────────────────────────
 	router.HandleFunc("/api/health", o.handleHealth).Methods("GET")
 	router.HandleFunc("/api/stats", o.handleStats).Methods("GET")
 	router.HandleFunc("/api/metrics/system", o.handleSystemMetrics).Methods("GET")
 	router.HandleFunc("/api/config", o.handleConfig).Methods("GET")
 
+	//API Backend ───────────────────────────────────────────────────────────────────────
 	router.HandleFunc("/api/backend", o.handleBackend).Methods("GET")
 	router.HandleFunc("/api/backend/switch", o.handleBackendSwitch).Methods("POST")
 
+	//API Agents ───────────────────────────────────────────────────────────────────────
 	router.HandleFunc("/api/agents", o.handleListAgents).Methods("GET")
 	router.HandleFunc("/api/agents/{id}", o.handleGetAgent).Methods("GET", "PUT")
 	router.HandleFunc("/api/agents/{id}/health", o.handleAgentHealth).Methods("GET")
 	router.HandleFunc("/api/agents/{id}/start", o.handleAgentStart).Methods("POST")
 	router.HandleFunc("/api/agents/{id}/stop", o.handleAgentStop).Methods("POST")
+	router.HandleFunc("/api/chat/{agent}", o.handleChat).Methods("POST")
 
+	//API Tasks ───────────────────────────────────────────────────────────────────────
 	router.HandleFunc("/api/tasks", o.handleCreateTask).Methods("POST")
 	router.HandleFunc("/api/tasks/{id}", o.handleGetTask).Methods("GET")
 
-	router.HandleFunc("/api/chat/{agent}", o.handleChat).Methods("POST")
-
+	//API Ollama ───────────────────────────────────────────────────────────────────────
 	router.HandleFunc("/api/ollama/models", o.handleOllamaModels).Methods("GET")
 	router.HandleFunc("/api/ollama/pull", o.handleOllamaPull).Methods("POST")
 	router.HandleFunc("/api/ollama/delete", o.handleOllamaDelete).Methods("DELETE")
 
+	//API Websocket ───────────────────────────────────────────────────────────────────────
 	router.HandleFunc(o.config.Server.WebsocketPath, o.handleWebSocket)
 
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("web/static")))
@@ -408,17 +413,10 @@ func (o *Orchestrator) handleUpdateAgent(w http.ResponseWriter, r *http.Request)
 			ba.SetModel(payload.Model)
 		}
 	}
-	configBytes, err := yaml.Marshal(o.config)
-	if err != nil {
-		log.Warn().Err(err).Str("agent", id).Msg("Erreur marshal config")
-	} else {
-		if err := os.WriteFile("config.yaml", configBytes, 0644); err != nil {
-			log.Warn().Err(err).Str("agent", id).Msg("Erreur écriture config.yaml")
-		} else {
-			log.Info().Str("agent", id).Str("model", payload.Model).Msg("✅ Config persistée")
-		}
-	}
-	jsonResponse(w, http.StatusOK, map[string]interface{}{"agent_id": id, "status": "persisted", "model": payload.Model, "enabled": payload.Enabled})
+	jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"agent_id": id, "status": "updated",
+		"model": payload.Model, "enabled": payload.Enabled,
+	})
 }
 
 func (o *Orchestrator) handleCreateTask(w http.ResponseWriter, r *http.Request) {

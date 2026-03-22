@@ -13,7 +13,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o orchestrator ./cmd/orc
 # ── Runtime stage ──────────────────────────────────────────────────────────────
 FROM alpine:3.19
 
-# Alpine → apk (pas apt-get), docker-cli pour lancer les containers trainer
+# Alpine docker-cli pour lancer les containers trainer
 RUN apk --no-cache add ca-certificates curl docker-cli
 
 WORKDIR /root/
