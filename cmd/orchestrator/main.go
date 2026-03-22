@@ -221,7 +221,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 
 	router.HandleFunc("/api/health", o.handleHealth).Methods("GET")
 	router.HandleFunc("/api/stats", o.handleStats).Methods("GET")
-	router.HandleFunc("/api/metrics/system", o.handleSystemMetrics).Methods("GET")
+	router.HandleFunc("/api/metrics/system", o.handleSystemMetrics).Methods("GET") // implémenté dans metrics_handler.go
 	router.HandleFunc("/api/config", o.handleConfig).Methods("GET")
 
 	router.HandleFunc("/api/backend", o.handleBackend).Methods("GET")
@@ -473,10 +473,24 @@ func (o *Orchestrator) handleChat(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "agent non trouvé"})
 		return
 	}
+	// Résoudre le modèle : priorité au modèle envoyé par le frontend,
+	// sinon lire depuis o.config.Agents (mis à jour par PUT /api/agents/{id})
+	resolvedModel := req.Model
+	if resolvedModel == "" {
+		if cfg, ok := o.config.Agents[agentID]; ok {
+			alias := cfg.Model
+			if m, ok := o.config.Ollama.Models[alias]; ok {
+				resolvedModel = m // résoudre l'alias (ex: coding → mistral:7b-instruct-q4_0)
+			} else if alias != "" {
+				resolvedModel = alias // modèle direct sans alias
+			}
+		}
+	}
+	log.Info().Str("agent", agentID).Str("model", resolvedModel).Msg("Chat request")
 	task := &agent.Task{
 		ID: fmt.Sprintf("chat-%d", time.Now().UnixNano()), AgentID: agentID,
 		Type: agent.TaskTypeChat, Input: req.Message, CreatedAt: time.Now(),
-		Context: map[string]interface{}{"model": req.Model},
+		Context: map[string]interface{}{"model": resolvedModel},
 	}
 	start := time.Now()
 	result, err := agentInstance.Execute(r.Context(), task)

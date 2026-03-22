@@ -98,6 +98,13 @@ cp .env.example .env
 # OLLAMA_URL=http://host.docker.internal:11434  # Windows/macOS
 # OLLAMA_URL=http://host-gateway:11434          # Linux Docker
 
+winget install Casey.Just
+
+# fermer vscode
+just --version
+#installer ollama https://ollama.com/download sur le C:  ou directement dans le dossier project
+\.ollama> .\ollama.exe serve
+#nouvelle fenetre 
 # 4. Lancer
 just start
 

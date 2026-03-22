@@ -7,7 +7,7 @@ ollama:
   base_url: "http://localhost:11434"
   default_model: "llama3.2:latest"
   models:
-    coding: "qwen2.5-coder:1.5b"
+    coding: "qwen2.5:32b"
     general: "llama3.2:latest"
     fast: "smollm2:360m"
     french: "mistral:7b-instruct-q4_0"

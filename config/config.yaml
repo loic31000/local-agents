@@ -62,14 +62,14 @@ queue:
 
 
 ollama:
-  base_url: "http://localhost:11434"
+  base_url: "http://host.docker.internal:11434"
   default_model: "llama3.2:latest"
 
-  models:
-    coding:  "qwen2.5-coder:1.5b"
-    general: "llama3.2:latest"
-    fast:    "smollm2:360m"
-    french:  "mistral:7b-instruct-q4_0"
+models:
+  coding:  "mistral:7b-instruct-q4_0"
+  general: "llama3.2:latest"
+  fast:    "llama3.2:latest"
+  french:  "mistral:7b-instruct-q4_0"
 
   defaults:
     temperature: 0.7
