@@ -1,0 +1,22 @@
+name: Security CI evaluation - isolated branch only
+
+on:
+  push:
+    branches:
+      - audit/security-ci-fp-validation-20261011
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Trial only: never add a pull_request or main trigger; never merge this branch.
+jobs:
+  external-security-audit:
+    name: Security CI - real local-agents project trial
+    uses: loic31000/security-ci/.github/workflows/security-audit.yml@823adf617d8824f469253a766648cfeb726e2abd
+    with:
+      enforce: false
+      # Existing real Go unit tests: no echo/true stand-in or fake JUnit.
+      # The reusable workflow executes this inside the local-agents checkout.
+      test_command: 'go test -v ./tests/unit -run "^TestBackendRouter_" -count=1'
+      require_test_report: false
