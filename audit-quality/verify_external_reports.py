@@ -88,6 +88,19 @@ def validate(root):
         match = re.search(r"Entrées SARIF brutes\s*:\s*(\d+)", markdown)
         if not match or int(match.group(1)) != total:
             fail(name + ": markdown / SARIF count mismatch")
+        # Same effective severity as sarif_decision.py, even if SARIF omits level.
+        expected_levels = []
+        for run in sarif["runs"]:
+            rules = {rule.get("id"): rule for rule in
+                     ((run["tool"]["driver"]).get("rules") or [])}
+            expected_levels.extend(effective_level(item, rules)
+                                   for item in run["results"])
+        displayed_levels = re.findall(
+            r"\*\*Gravité SARIF :\*\*\\s*(error|warning|note|none)\\b",
+            markdown,
+        )
+        if Counter(expected_levels) != Counter(displayed_levels):
+            fail(name + ": Markdown severity disagrees with effective SARIF levels")
         summary["scanners"][name] = {
             "raw_results": total, "candidates": counts["candidate"],
             "suppressed": counts["suppressed"], "other": counts["other"],
