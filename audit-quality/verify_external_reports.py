@@ -119,6 +119,43 @@ def verify_calibrations(root):
     return report
 
 
+
+def verify_stack_coverage(root, inventory):
+    """Independent check of Security CI's dependency target coverage statement."""
+    evidence = json.loads(only(root, "stack-coverage.json").read_text(encoding="utf-8"))
+    if not isinstance(evidence, dict) or evidence.get("status") != "PASS":
+        fail("stack coverage missing or incomplete")
+    families = evidence.get("families")
+    if not isinstance(families, dict):
+        fail("stack coverage families missing")
+    expected = {
+        "go-modules": ("gomod", "go.mod"),
+        "python-pip": ("pip", "requirements.txt"),
+        "node-pnpm": ("pnpm", "pnpm-lock.yaml"),
+    }
+    for family, (target_type, filename) in expected.items():
+        matched = set()
+        for record in inventory.get("Results", []):
+            path = (record.get("Target") or "").replace("\\\\", "/")
+            if (record.get("Type") == target_type
+                    and record.get("Class") == "lang-pkgs"
+                    and (path == filename or path.endswith("/" + filename))):
+                matched.add(path)
+        item = families.get(family)
+        if not isinstance(item, dict) or item.get("state") != "SCANNED":
+            fail(family + ": real scan not certified")
+        if (type(item.get("declared_manifests")) is not int
+                or type(item.get("recognized_manifests")) is not int
+                or item["declared_manifests"] != len(matched)
+                or item["recognized_manifests"] != len(matched)
+                or not matched):
+            fail(family + ": independent coverage count disagrees with Trivy")
+    if any(isinstance(v, dict) and v.get("state") == "INCOMPLETE"
+           for v in families.values()):
+        fail("coverage statement contains incomplete stack")
+    return {name: families[name]["recognized_manifests"] for name in expected}
+
+
 def validate(root):
     root = Path(root)
     summary = {
@@ -183,6 +220,7 @@ def validate(root):
         if summary["scanners"][name]["raw_results"] < 1:
             fail("known baseline " + name + " results disappeared: review coverage")
     summary["calibration"] = verify_calibrations(root)
+    summary["stack_coverage"] = verify_stack_coverage(root, inventory)
     return summary
 
 
