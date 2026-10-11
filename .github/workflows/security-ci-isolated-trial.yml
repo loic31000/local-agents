@@ -36,3 +36,37 @@ jobs:
       # The reusable workflow executes this inside the local-agents checkout.
       test_command: 'go mod tidy && go test -v ./tests/unit -run "^TestBackendRouter_" -count=1'
       require_test_report: false
+
+  quality-evidence:
+    name: Verify actual audit reports and prevent false clean outcomes
+    needs: [runner-diagnostic, external-security-audit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Validate the independent evidence checker with adversarial cases
+        run: python3 -m unittest discover -s audit-quality -p 'test_*.py' -v
+      - name: Fetch scanner artifacts from the same audited commit and run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/security-artifacts"
+          gh run download "$GITHUB_RUN_ID" --pattern 'security-*' --dir "$RUNNER_TEMP/security-artifacts"
+      - name: Prove artifact consistency, real scanner targets, and no silent clean
+        run: |
+          python3 audit-quality/verify_external_reports.py \
+            --root "$RUNNER_TEMP/security-artifacts" \
+            --output "$RUNNER_TEMP/audit-quality-evidence.json"
+      - name: Archive independent quality evidence (no scanner messages/secrets)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: audit-quality-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/audit-quality-evidence.json
+          if-no-files-found: warn
+          retention-days: 30
