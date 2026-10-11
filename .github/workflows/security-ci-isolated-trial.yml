@@ -22,6 +22,9 @@ jobs:
       - name: Run actual local-agents backend tests (no mocks added)
         run: |
           go version
+          # Trial-only: this source tree has no committed go.sum; resolve modules
+          # in this ephemeral runner before executing real tests, without committing changes.
+          go mod tidy
           go test -v ./tests/unit -run "^TestBackendRouter_" -count=1
 
   external-security-audit:
@@ -31,5 +34,5 @@ jobs:
       enforce: false
       # Existing real Go unit tests: no echo/true stand-in or fake JUnit.
       # The reusable workflow executes this inside the local-agents checkout.
-      test_command: 'go test -v ./tests/unit -run "^TestBackendRouter_" -count=1'
+      test_command: 'go mod tidy && go test -v ./tests/unit -run "^TestBackendRouter_" -count=1'
       require_test_report: false
