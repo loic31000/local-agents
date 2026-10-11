@@ -66,7 +66,7 @@ class QualityVerifierTest(unittest.TestCase):
                 count = 1 if finding else 0
                 severity = "- **Gravité SARIF :** warning" if finding else ""
                 (root / (name + ".md")).write_text(
-                    f"Entrées SARIF brutes : {count}\\n{severity}\\n")
+                    f"Entrées SARIF brutes : {count}\n{severity}\n")
             targets = {"Results": [
                 {"Target": "go.mod", "Class": "lang-pkgs", "Type": "gomod",
                  "Vulnerabilities": [{"VulnerabilityID": "QA-synthetic"}]},
@@ -79,10 +79,10 @@ class QualityVerifierTest(unittest.TestCase):
             self.assertEqual(qa.validate(root)["status"], "PASS")
 
             gitleaks = root / "gitleaks.md"
-            gitleaks.write_text("Entrées SARIF brutes : 1\\n- **Gravité SARIF :** non précisée\\n")
+            gitleaks.write_text("Entrées SARIF brutes : 1\n- **Gravité SARIF :** non précisée\n")
             with self.assertRaisesRegex(ValueError, "severity"):
                 qa.validate(root)
-            gitleaks.write_text("Entrées SARIF brutes : 1\\n- **Gravité SARIF :** warning\\n")
+            gitleaks.write_text("Entrées SARIF brutes : 1\n- **Gravité SARIF :** warning\n")
             targets["Results"].pop(1)  # remove Python coverage
             inventory.write_text(json.dumps(targets))
             with self.assertRaisesRegex(ValueError, "coverage"):
