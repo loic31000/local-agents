@@ -29,7 +29,7 @@ jobs:
 
   external-security-audit:
     name: Security CI - real local-agents project trial
-    uses: loic31000/security-ci/.github/workflows/security-audit.yml@cf67aea6c11c8b0c3571b7a38ff8f57217ae82e7
+    uses: loic31000/security-ci/.github/workflows/security-audit.yml@d832eadd79945c180d8d217816fcfdc8aae7ca08
     with:
       enforce: false
       # Existing real Go unit tests: no echo/true stand-in or fake JUnit.
