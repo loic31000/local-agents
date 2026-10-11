@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 SCANNERS = ("semgrep", "trivy", "gitleaks", "zizmor")
+CALIBRATED_SCANNERS = ("semgrep", "gitleaks", "zizmor")
 EXPECTED_TYPES = {"gomod", "pip", "pnpm"}
 
 
@@ -68,6 +69,54 @@ def candidate_counts(doc):
                     if parts.scheme or path.is_absolute() or ".." in path.parts:
                         fail("unsafe non-repository SARIF result path")
     return counts
+
+
+
+def verify_calibrations(root):
+    """Check completeness/consistency of the two actual labeled scanner suites.
+
+    This does not authenticate the source of uploaded artifacts or infer
+    real-world scanner accuracy.
+    """
+    report = {}
+    expected_pair = {
+        "status": "PASS", "labeled_positive_fixtures": 1,
+        "labeled_negative_fixtures": 1,
+        "true_positive_fixtures": 1, "true_negative_fixtures": 1,
+        "false_positive_fixtures": 0, "false_negative_fixtures": 0,
+        "unexpected_positive_locations": 0, "scanner_identity_checked": True,
+    }
+    expected_summary = {
+        "status": "PASS", "pairs": 2,
+        "true_positive_fixtures": 2, "true_negative_fixtures": 2,
+        "false_positive_fixtures": 0, "false_negative_fixtures": 0,
+    }
+    for scanner in CALIBRATED_SCANNERS:
+        for suffix in ("", "-second"):
+            filename = f"precision-{scanner}{suffix}.json"
+            evidence = json.loads(only(root, filename).read_text(encoding="utf-8"))
+            if not isinstance(evidence, dict) or evidence.get("scanner") != scanner:
+                fail(scanner + ": scanner identity mismatch in calibration")
+            if any(evidence.get(key) != value or (
+                    isinstance(value, int) and not isinstance(value, bool)
+                    and type(evidence.get(key)) is not int)
+                    for key, value in expected_pair.items()):
+                fail(scanner + ": calibration case is missing or inconsistent")
+        aggregate = json.loads(
+            only(root, f"precision-{scanner}-summary.json").read_text(encoding="utf-8")
+        )
+        if not isinstance(aggregate, dict) or aggregate.get("scanner") != scanner:
+            fail(scanner + ": calibration aggregate identity mismatch")
+        if any(aggregate.get(key) != value or (
+                isinstance(value, int) and not isinstance(value, bool)
+                and type(aggregate.get(key)) is not int)
+                for key, value in expected_summary.items()):
+            fail(scanner + ": calibration aggregate differs from expected outcomes")
+        report[scanner] = {
+            "positive_fixtures": 2, "negative_fixtures": 2,
+            "false_positive_fixtures": 0, "false_negative_fixtures": 0,
+        }
+    return report
 
 
 def validate(root):
@@ -133,6 +182,7 @@ def validate(root):
     for name in ("semgrep", "gitleaks"):
         if summary["scanners"][name]["raw_results"] < 1:
             fail("known baseline " + name + " results disappeared: review coverage")
+    summary["calibration"] = verify_calibrations(root)
     return summary
 
 
