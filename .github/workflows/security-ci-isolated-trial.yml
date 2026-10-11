@@ -55,8 +55,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p "$RUNNER_TEMP/security-artifacts"
-          gh run download "$GITHUB_RUN_ID" --pattern 'security-*' --dir "$RUNNER_TEMP/security-artifacts"
+          mkdir -p "$RUNNER_TEMP/security-artifacts-raw"
+          gh run download "$GITHUB_RUN_ID" --pattern 'security-*' --dir "$RUNNER_TEMP/security-artifacts-raw"
+          # Partial reruns retain successful artifacts from older attempts.
+          # Pick the latest complete artifact for each scanner, never merge files.
+          python3 audit-quality/select_latest_artifacts.py \
+            --input "$RUNNER_TEMP/security-artifacts-raw" \
+            --output "$RUNNER_TEMP/security-artifacts" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
       - name: Prove artifact consistency, real scanner targets, and no silent clean
         run: |
           python3 audit-quality/verify_external_reports.py \
