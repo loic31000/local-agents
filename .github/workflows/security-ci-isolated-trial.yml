@@ -11,6 +11,19 @@ permissions:
 
 # Trial only: never add a pull_request or main trigger; never merge this branch.
 jobs:
+  runner-diagnostic:
+    name: Verify GitHub runner availability and execute a real Go test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Run actual local-agents backend tests (no mocks added)
+        run: |
+          go version
+          go test -v ./tests/unit -run "^TestBackendRouter_" -count=1
+
   external-security-audit:
     name: Security CI - real local-agents project trial
     uses: loic31000/security-ci/.github/workflows/security-audit.yml@823adf617d8824f469253a766648cfeb726e2abd
