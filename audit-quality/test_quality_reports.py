@@ -94,6 +94,25 @@ class QualityVerifierTest(unittest.TestCase):
                              "false_positive_fixtures": 0, "false_negative_fixtures": 0}
                 (root / f"precision-{scanner}-summary.json").write_text(
                     json.dumps(aggregate))
+            coverage = {
+                "status": "PASS",
+                "families": {
+                    name: {"state": "SCANNED",
+                           "declared_manifests": 1,
+                           "recognized_manifests": 1}
+                    for name in ("go-modules", "python-pip", "node-pnpm")
+                }
+            }
+            stack_file = root / "stack-coverage.json"
+            stack_file.write_text(json.dumps(coverage))
+            self.assertEqual(qa.validate(root)["status"], "PASS")
+
+            coverage["families"]["python-pip"]["recognized_manifests"] = 0
+            stack_file.write_text(json.dumps(coverage))
+            with self.assertRaisesRegex(ValueError, "independent coverage count"):
+                qa.validate(root)
+            coverage["families"]["python-pip"]["recognized_manifests"] = 1
+            stack_file.write_text(json.dumps(coverage))
             self.assertEqual(qa.validate(root)["status"], "PASS")
 
             secondary = root / "precision-semgrep-second.json"
