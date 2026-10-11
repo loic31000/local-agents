@@ -96,7 +96,7 @@ def validate(root):
             expected_levels.extend(effective_level(item, rules)
                                    for item in run["results"])
         displayed_levels = re.findall(
-            r"\*\*Gravité SARIF :\*\*\\s*(error|warning|note|none)\\b",
+            r"\*\*Gravité SARIF :\*\*\s*(error|warning|note|none)\b",
             markdown,
         )
         if Counter(expected_levels) != Counter(displayed_levels):
