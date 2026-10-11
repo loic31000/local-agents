@@ -76,7 +76,41 @@ class QualityVerifierTest(unittest.TestCase):
             ]}
             inventory = root / "trivy-targets.json"
             inventory.write_text(json.dumps(targets))
+            for scanner in qa.CALIBRATED_SCANNERS:
+                case = {
+                    "scanner": scanner, "status": "PASS",
+                    "labeled_positive_fixtures": 1,
+                    "labeled_negative_fixtures": 1,
+                    "true_positive_fixtures": 1, "true_negative_fixtures": 1,
+                    "false_positive_fixtures": 0, "false_negative_fixtures": 0,
+                    "unexpected_positive_locations": 0,
+                    "scanner_identity_checked": True,
+                }
+                for suffix in ("", "-second"):
+                    (root / f"precision-{scanner}{suffix}.json").write_text(
+                        json.dumps(case))
+                aggregate = {"scanner": scanner, "status": "PASS", "pairs": 2,
+                             "true_positive_fixtures": 2, "true_negative_fixtures": 2,
+                             "false_positive_fixtures": 0, "false_negative_fixtures": 0}
+                (root / f"precision-{scanner}-summary.json").write_text(
+                    json.dumps(aggregate))
             self.assertEqual(qa.validate(root)["status"], "PASS")
+
+            secondary = root / "precision-semgrep-second.json"
+            secondary.write_text(json.dumps({**case, "scanner": "semgrep",
+                                             "false_negative_fixtures": 1}))
+            with self.assertRaisesRegex(ValueError, "calibration case"):
+                qa.validate(root)
+            secondary.write_text(json.dumps({**case, "scanner": "semgrep"}))
+            second_summary = root / "precision-gitleaks-summary.json"
+            second_summary.unlink()
+            with self.assertRaisesRegex(ValueError, "precision-gitleaks-summary"):
+                qa.validate(root)
+            second_summary.write_text(json.dumps({
+                "scanner": "gitleaks", "status": "PASS", "pairs": 2,
+                "true_positive_fixtures": 2, "true_negative_fixtures": 2,
+                "false_positive_fixtures": 0, "false_negative_fixtures": 0
+            }))
 
             gitleaks = root / "gitleaks.md"
             gitleaks.write_text("Entrées SARIF brutes : 1\n- **Gravité SARIF :** non précisée\n")
