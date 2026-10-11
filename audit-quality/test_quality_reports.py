@@ -56,5 +56,38 @@ class QualityVerifierTest(unittest.TestCase):
                 qa.validate(Path(directory))
 
 
+    def test_full_artifact_consistency_detects_tampering(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in qa.SCANNERS:
+                finding = {"ruleId": "synthetic"} if name != "zizmor" else None
+                (root / (name + ".sarif")).write_text(json.dumps(sarif(finding)))
+                count = 1 if finding else 0
+                severity = "- **Gravité SARIF :** warning" if finding else ""
+                (root / (name + ".md")).write_text(
+                    f"Entrées SARIF brutes : {count}\\n{severity}\\n")
+            targets = {"Results": [
+                {"Target": "go.mod", "Class": "lang-pkgs", "Type": "gomod",
+                 "Vulnerabilities": [{"VulnerabilityID": "QA-synthetic"}]},
+                {"Target": "requirements.txt", "Class": "lang-pkgs", "Type": "pip"},
+                {"Target": "frontend/pnpm-lock.yaml", "Class": "lang-pkgs", "Type": "pnpm"},
+                {"Target": "config/Dockerfile", "Class": "config", "Type": "dockerfile"},
+            ]}
+            inventory = root / "trivy-targets.json"
+            inventory.write_text(json.dumps(targets))
+            self.assertEqual(qa.validate(root)["status"], "PASS")
+
+            gitleaks = root / "gitleaks.md"
+            gitleaks.write_text("Entrées SARIF brutes : 1\\n- **Gravité SARIF :** non précisée\\n")
+            with self.assertRaisesRegex(ValueError, "severity"):
+                qa.validate(root)
+            gitleaks.write_text("Entrées SARIF brutes : 1\\n- **Gravité SARIF :** warning\\n")
+            targets["Results"].pop(1)  # remove Python coverage
+            inventory.write_text(json.dumps(targets))
+            with self.assertRaisesRegex(ValueError, "coverage"):
+                qa.validate(root)
+
+
 if __name__ == "__main__":
     unittest.main()
